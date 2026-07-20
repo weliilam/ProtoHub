@@ -466,10 +466,6 @@ const Component = () => {
           <Button icon={<CheckOutlined />} onClick={handleApprove} disabled={selectedRowKeys.length === 0}>审核通过</Button>
           <Button icon={<CloseOutlined />} onClick={handleReject} disabled={selectedRowKeys.length === 0}>审核不通过</Button>
           <Button type="primary" icon={<DownloadOutlined />} onClick={handleExport}>导出</Button>
-          <Button icon={<CopyOutlined />} onClick={copySelection} disabled={cellSelection.size === 0}>
-            复制选中{cellSelection.size > 0 ? `(${cellSelection.size})` : ''}
-          </Button>
-          {cellSelection.size > 0 && <Button onClick={() => setCellSelection(new Set())}>取消选中</Button>}
         </Space>
         <Space>
           <Button type="primary" icon={<SearchOutlined />} onClick={() => message.info('查询完成')}>查询</Button>
