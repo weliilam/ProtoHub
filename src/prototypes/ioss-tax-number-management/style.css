@@ -1,0 +1,98 @@
+.ioss-layout {
+  min-height: 100vh;
+  background: #f5f5f5;
+  padding: 16px 24px;
+  box-sizing: border-box;
+}
+
+.ioss-page-header {
+  margin-bottom: 16px;
+}
+
+.ioss-page-title-area {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+}
+
+.ioss-page-title {
+  margin: 0 !important;
+}
+
+.ioss-page-desc {
+  font-size: 13px;
+}
+
+.ioss-search-bar {
+  background: #fff;
+  border-radius: 8px 8px 0 0;
+  padding: 16px 24px;
+  margin-bottom: 0;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.ioss-search-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.ioss-search-item {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.ioss-search-item-grow {
+  flex: 1;
+  min-width: 240px;
+}
+
+.ioss-search-label {
+  font-size: 13px;
+  color: rgba(0, 0, 0, 0.85);
+  white-space: nowrap;
+}
+
+.ioss-input {
+  width: 220px;
+}
+
+.ioss-search-item-grow .ioss-input {
+  width: 100%;
+}
+
+.ioss-select {
+  width: 160px;
+}
+
+.ioss-tag-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 4px;
+}
+
+.ioss-action-bar {
+  background: #fff;
+  padding: 12px 24px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.ioss-table-wrapper {
+  background: #fff;
+  padding: 0 24px 24px;
+  border-radius: 0 0 8px 8px;
+}
+
+.ioss-table .ant-table-thead > tr > th {
+  white-space: nowrap;
+}
+
+.ioss-table .ant-pagination {
+  margin-bottom: 0;
+}
