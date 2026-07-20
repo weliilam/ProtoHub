@@ -1,0 +1,322 @@
+/* ========================= DW送达时段列表 样式 ========================= */
+:root {
+  --dwd-bg: #f5f6fa;
+  --dwd-primary: #6366f1;
+  --dwd-text: #1a1a2e;
+  --dwd-text2: #6b7280;
+  --dwd-font: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
+}
+
+/* ====== Page ====== */
+.dwd-page {
+  font-family: var(--dwd-font);
+  background: var(--dwd-bg);
+  min-height: 100vh;
+  color: var(--dwd-text);
+  font-size: 14px;
+  line-height: 1.5;
+}
+.dwd-container {
+  max-width: 1600px;
+  margin: 0 auto;
+  padding: 24px 28px;
+}
+
+/* ====== Header ====== */
+.dwd-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 18px;
+}
+.dwd-header-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.dwd-title {
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--dwd-text);
+  margin: 0;
+}
+
+/* ====== Search Card ====== */
+.dwd-search-card {
+  background: #fff;
+  border-radius: 8px;
+  padding: 16px 24px;
+  margin-bottom: 12px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+}
+.dwd-search-form {
+  row-gap: 12px;
+}
+.dwd-search-form .ant-form-item {
+  margin-bottom: 0;
+}
+.dwd-search-form .ant-form-item-label > label {
+  font-size: 13px;
+  color: #4b5563;
+  font-weight: 500;
+}
+
+/* ====== Table Card ====== */
+.dwd-table-card {
+  background: #fff;
+  border-radius: 8px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+  overflow: hidden;
+  margin-top: 12px;
+}
+
+/* antd v5 table overrides */
+.dwd-table .ant-table-thead > tr > th {
+  background: #fafbfc !important;
+  font-weight: 600;
+  font-size: 12px;
+  color: #4b5563;
+  border-bottom: 1px solid #e5e7eb;
+  padding: 8px 12px !important;
+  white-space: nowrap;
+  line-height: 1.4;
+}
+.dwd-table .ant-table-tbody > tr > td {
+  padding: 8px 12px !important;
+  font-size: 13px;
+  border-bottom: 1px solid #f3f4f6;
+}
+.dwd-table .ant-table-tbody > tr:hover > td {
+  background: #f8f9ff !important;
+}
+
+/* 固定列 */
+.dwd-table .ant-table-cell-fix-right,
+.dwd-table .ant-table-cell-fix-left {
+  background: #fff !important;
+}
+.dwd-table .ant-table-tbody > tr:hover .ant-table-cell-fix-right,
+.dwd-table .ant-table-tbody > tr:hover .ant-table-cell-fix-left {
+  background: #f8f9ff !important;
+}
+
+/* 操作列 */
+.dwd-action-divider {
+  color: #e5e7eb;
+  display: inline-block;
+  margin: 0 2px;
+}
+.dwd-table .ant-btn-link {
+  padding: 0 4px;
+  font-size: 13px;
+  height: auto;
+}
+
+/* 等宽文本 */
+.dwd-mono {
+  font-family: "SF Mono", "Cascadia Code", "Consolas", monospace;
+  font-size: 12px;
+  color: var(--dwd-primary);
+  font-weight: 500;
+}
+.dwd-text-sm {
+  font-size: 12px;
+  color: #4b5563;
+}
+.dwd-text-muted {
+  color: #c0c4cc;
+}
+.dwd-latest {
+  font-size: 12px;
+  color: var(--dwd-primary);
+  font-weight: 500;
+}
+
+/* pagination */
+.dwd-table .ant-pagination {
+  padding: 14px 16px;
+  margin: 0 !important;
+  border-top: 1px solid #f3f4f6;
+}
+
+/* ====== Modal ====== */
+.dwd-modal-body {
+  padding: 4px 0;
+}
+.dwd-modal-row {
+  display: flex;
+  align-items: flex-start;
+  padding: 12px 0;
+  border-bottom: 1px solid #f3f4f6;
+}
+.dwd-modal-row:last-child {
+  border-bottom: none;
+}
+.dwd-modal-label {
+  width: 105px;
+  font-size: 13px;
+  color: var(--dwd-text2);
+  flex-shrink: 0;
+  font-weight: 500;
+  padding-top: 5px;
+}
+.dwd-modal-val {
+  font-size: 13px;
+  font-weight: 500;
+  word-break: break-all;
+  color: var(--dwd-text);
+  padding-top: 5px;
+}
+.dwd-modal-tip {
+  margin-top: 16px;
+  padding: 12px 16px;
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  border-radius: 8px;
+  font-size: 12px;
+  color: #1e40af;
+  line-height: 1.6;
+}
+
+/* ====== 日志 ====== */
+.dwd-log-list {
+  display: flex;
+  flex-direction: column;
+}
+.dwd-log-item {
+  display: flex;
+  gap: 14px;
+  padding: 14px 0;
+  position: relative;
+}
+.dwd-log-item + .dwd-log-item {
+  border-top: 1px solid #f3f4f6;
+}
+.dwd-log-dot {
+  width: 8px; height: 8px; border-radius: 50%;
+  background: #a5b4fc;
+  flex-shrink: 0;
+  margin-top: 5px;
+  box-shadow: 0 0 0 3px rgba(165, 180, 252, 0.2);
+}
+.dwd-log-content {
+  flex: 1;
+  min-width: 0;
+}
+.dwd-log-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 6px;
+}
+.dwd-log-time {
+  font-size: 12px;
+  color: #9ca3af;
+  white-space: nowrap;
+}
+.dwd-log-action {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--dwd-text);
+}
+.dwd-log-row {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 4px;
+  font-size: 12px;
+  line-height: 1.6;
+}
+.dwd-log-label {
+  color: #9ca3af;
+  flex-shrink: 0;
+  font-weight: 500;
+}
+.dwd-log-before {
+  color: #6b7280;
+  background: #f9fafb;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-family: "SF Mono", "Consolas", monospace;
+  font-size: 11px;
+}
+.dwd-log-result {
+  color: var(--dwd-text);
+  font-weight: 500;
+}
+
+/* ====== Drawer Task Panel ====== */
+.dwd-task-summary {
+  padding: 16px;
+  background: #fafcfd;
+  border: 1px solid #e8ecf1;
+  border-radius: 8px;
+  margin-bottom: 16px;
+}
+.dwd-stat-block {
+  text-align: center;
+}
+.dwd-stat-num {
+  font-size: 24px;
+  font-weight: 700;
+  letter-spacing: -0.5px;
+}
+.dwd-stat-label {
+  font-size: 12px;
+  color: #9ca3af;
+  margin-top: 2px;
+}
+.dwd-task-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.dwd-task-item {
+  padding: 14px 16px;
+  border: 1px solid #f0f0f0;
+  border-radius: 8px;
+  background: #fff;
+  transition: box-shadow 0.2s;
+}
+.dwd-task-item:hover {
+  box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+}
+.dwd-task-row1 {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+.dwd-task-info {
+  flex: 1;
+  min-width: 0;
+}
+.dwd-task-yT {
+  font-size: 13px;
+  font-weight: 600;
+  color: #1a1a2e;
+  font-family: "SF Mono","Consolas",monospace;
+}
+.dwd-task-fba {
+  font-size: 11px;
+  color: #9ca3af;
+  font-family: "SF Mono","Consolas",monospace;
+}
+.dwd-task-msg {
+  font-size: 12px;
+  margin-top: 6px;
+  line-height: 1.4;
+}
+.dwd-task-error {
+  font-size: 11px;
+  color: #ff4d4f;
+  background: #fff2f0;
+  padding: 4px 8px;
+  border-radius: 4px;
+  margin-top: 4px;
+  border: 1px solid #ffccc7;
+}
+
+/* ====== Responsive ====== */
+@media (max-width: 768px) {
+  .dwd-container { padding: 16px 12px; }
+}
