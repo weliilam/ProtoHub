@@ -96,3 +96,44 @@
 .ioss-table .ant-pagination {
   margin-bottom: 0;
 }
+
+/* 可选中 + 复制的单元格 */
+.copyable-cell {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 100%;
+}
+
+.copyable-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.copy-icon {
+  color: #999;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.2s, color 0.2s;
+  flex-shrink: 0;
+}
+
+.copyable-cell:hover .copy-icon {
+  opacity: 1;
+}
+
+.copy-icon:hover {
+  color: #1677ff;
+}
+
+/* 单元格框选复制 */
+.ioss-table td {
+  user-select: none;
+  cursor: cell;
+}
+
+.ioss-table td.cell-selected,
+.ioss-table td.cell-selected:hover {
+  background: #bae0ff !important;
+}

@@ -1,6 +1,6 @@
 import './style.css';
 
-import React, { useState, useCallback, useMemo } from 'react';
+import React, { useState, useCallback, useMemo, useRef, useEffect } from 'react';
 import {
   Table,
   Button,
@@ -8,6 +8,7 @@ import {
   Space,
   Input,
   Select,
+  DatePicker,
   Modal,
   Typography,
   message,
@@ -22,9 +23,38 @@ import {
   CheckOutlined,
   CloseOutlined,
   FileTextOutlined,
+  CopyOutlined,
 } from '@ant-design/icons';
+import dayjs, { Dayjs } from 'dayjs';
 
 const { Title, Text } = Typography;
+
+// 复制文本：优先用 navigator.clipboard，非安全上下文（HTTP/局域网IP）下回退到 execCommand
+const copyToClipboard = async (text: string): Promise<boolean> => {
+  try {
+    if (navigator.clipboard && window.isSecureContext) {
+      await navigator.clipboard.writeText(text);
+      return true;
+    }
+  } catch {
+    /* 落到下面的兜底方案 */
+  }
+  try {
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.position = 'fixed';
+    ta.style.top = '-9999px';
+    ta.style.opacity = '0';
+    document.body.appendChild(ta);
+    ta.focus();
+    ta.select();
+    const ok = document.execCommand('copy');
+    document.body.removeChild(ta);
+    return ok;
+  } catch {
+    return false;
+  }
+};
 
 // ========================= 模拟数据 =========================
 
@@ -53,6 +83,53 @@ const PLATFORM_OPTIONS = [
   { value: 'AliExpress', label: 'AliExpress' },
 ];
 
+// IOSS 号脱敏展示（密文）：基于输入生成确定性的加密串，无 * 掩码
+const CIPHER_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789';
+const maskIoss = (no: string) => {
+  if (!no) return '';
+  let h = 0x811c9dc5; // FNV-1a 种子
+  const out: string[] = [];
+  for (let i = 0; i < no.length; i++) {
+    h ^= no.charCodeAt(i);
+    h = Math.imul(h, 0x01000193) >>> 0;
+    out.push(CIPHER_CHARS[h % CIPHER_CHARS.length]);
+  }
+  return out.join('');
+};
+
+// 可复制单元格：文本可手动选中，悬浮出现复制图标
+const CopyableCell = ({ text, copyText }: { text: React.ReactNode; copyText?: string }) => {
+  const value = copyText ?? (typeof text === 'string' ? text : '');
+  return (
+    <span className="copyable-cell">
+      <span className="copyable-text">{text || <Text type="secondary">-</Text>}</span>
+      {value && (
+        <CopyOutlined
+          className="copy-icon"
+          title="复制"
+          onClick={(e) => {
+            e.stopPropagation();
+            copyToClipboard(value).then((ok) => (ok ? message.success('已复制') : message.error('复制失败')));
+          }}
+        />
+      )}
+    </span>
+  );
+};
+
+// 可复制列元数据（顺序即列顺序，用于多选复制时还原表格结构）
+const SELECTABLE_COLS = [
+  { key: 'customer_code', title: '客户代码', width: 120, getValue: (r: any) => r.customer_code },
+  { key: 'customer_type', title: '类型', width: 70, getValue: (r: any) => (r.customer_type === 'personal' ? '个人' : '平台') },
+  { key: 'platform_name', title: '平台名称', width: 100, getValue: (r: any) => r.platform_name || '-' },
+  { key: 'ioss_no', title: 'IOSS识别码', width: 200, getValue: (r: any) => r.ioss_no },
+  { key: 'ioss_cipher', title: 'IOSS密文', width: 180, getValue: (r: any) => maskIoss(r.ioss_no) },
+  { key: 'audit_type', title: '审核类型', width: 90, getValue: (r: any) => (r.audit_type === 'standard' ? '常规审核' : '特殊审核') },
+  { key: 'audit_status', title: '状态', width: 90, getValue: (r: any) => AUDIT_STATUS_OPTIONS.find((o) => o.value === r.audit_status)?.label || r.audit_status },
+  { key: 'reject_remark', title: '审核不通过备注', width: 180, getValue: (r: any) => r.reject_remark || '-' },
+  { key: 'file_name', title: '注册文件', width: 120, getValue: (r: any) => r.file_name || '-' },
+];
+
 const MOCK_DATA = [
   { key: '1', customer_code: 'CN0C427089', customer_type: 'personal', platform_name: '', ioss_no: 'IOSS26199132842172712763', recognized_name: '深圳王小姐', audit_type: 'standard', audit_status: 'rejected', reject_remark: '', file_name: '', create_time: '2026-07-18 09:30:00' },
   { key: '2', customer_code: 'CN0C709682', customer_type: 'platform', platform_name: 'Temu', ioss_no: 'IOSS26197153103093419470', recognized_name: 'Temu主账号', audit_type: 'standard', audit_status: 'rejected', reject_remark: '', file_name: '', create_time: '2026-07-18 10:15:00' },
@@ -77,6 +154,11 @@ const Component = () => {
   const [iossInput, setIossInput] = useState('');
   const [searchAuditType, setSearchAuditType] = useState<string | undefined>(undefined);
   const [searchAuditStatus, setSearchAuditStatus] = useState<string | undefined>(undefined);
+  const [searchCreateTime, setSearchCreateTime] = useState<[Dayjs, Dayjs] | null>(null);
+  // 单元格框选复制
+  const [cellSelection, setCellSelection] = useState<Set<string>>(new Set());
+  const selectingRef = useRef(false);
+  const anchorRef = useRef<{ row: number; col: number } | null>(null);
   const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([]);
   const [dataSource, setDataSource] = useState(MOCK_DATA);
 
@@ -87,9 +169,13 @@ const Component = () => {
       if (searchIossNo.length > 0 && !searchIossNo.some((v) => item.ioss_no.includes(v))) return false;
       if (searchAuditType && item.audit_type !== searchAuditType) return false;
       if (searchAuditStatus && item.audit_status !== searchAuditStatus) return false;
+      if (searchCreateTime) {
+        const ct = dayjs(item.create_time, 'YYYY-MM-DD HH:mm:ss');
+        if (ct.isBefore(searchCreateTime[0].startOf('day')) || ct.isAfter(searchCreateTime[1].endOf('day'))) return false;
+      }
       return true;
     });
-  }, [dataSource, searchCustomerCode, searchIossNo, searchAuditType, searchAuditStatus]);
+  }, [dataSource, searchCustomerCode, searchIossNo, searchAuditType, searchAuditStatus, searchCreateTime]);
 
   // ---------- 重置 ----------
   const handleReset = () => {
@@ -98,6 +184,8 @@ const Component = () => {
     setIossInput('');
     setSearchAuditType(undefined);
     setSearchAuditStatus(undefined);
+    setSearchCreateTime(null);
+    setCellSelection(new Set());
   };
 
   // ---------- 审核操作 ----------
@@ -130,17 +218,18 @@ const Component = () => {
 
   const handleExport = () => {
     if (filteredData.length === 0) return message.warning('没有可导出的数据');
-    const headers = ['客户代码', '类型', '平台名称', 'IOSS识别码', 'IOSS识别名', '审核类型', '状态', '审核不通过备注', '注册文件'];
+    const headers = ['客户代码', '类型', '平台名称', 'IOSS识别码', 'IOSS密文', '审核类型', '状态', '审核不通过备注', '注册文件', '创建时间'];
     const rows = filteredData.map((item) => [
       item.customer_code,
       item.customer_type === 'personal' ? '个人' : '平台',
       item.platform_name || '-',
       item.ioss_no,
-      item.recognized_name,
+      maskIoss(item.ioss_no),
       item.audit_type === 'standard' ? '常规审核' : '特殊审核',
       AUDIT_STATUS_OPTIONS.find((o) => o.value === item.audit_status)?.label || item.audit_status,
       item.reject_remark,
       item.file_name,
+      item.create_time,
     ]);
     const csvContent = [headers, ...rows].map((r) => r.join(',')).join('\n');
     const blob = new Blob([`\uFEFF${csvContent}`], { type: 'text/csv;charset=utf-8;' });
@@ -164,61 +253,148 @@ const Component = () => {
     }
   }, []);
 
+  // ---------- 单元格多选复制 ----------
+  const applySelection = (r1: number, c1: number, r2: number, c2: number) => {
+    const rMin = Math.min(r1, r2), rMax = Math.max(r1, r2);
+    const cMin = Math.min(c1, c2), cMax = Math.max(c1, c2);
+    const next = new Set<string>();
+    for (let r = rMin; r <= rMax; r++) {
+      const rec = filteredData[r];
+      if (!rec) continue;
+      for (let c = cMin; c <= cMax; c++) next.add(`${r}|${c}`);
+    }
+    setCellSelection(next);
+  };
+
+  const makeCellProps = (record: any, rowIndex: number, colIdx: number) => {
+    const selKey = `${rowIndex}|${colIdx}`;
+    return {
+      className: cellSelection.has(selKey) ? 'cell-selected' : undefined,
+      onMouseDown: (e: React.MouseEvent) => {
+        e.preventDefault();
+        selectingRef.current = true;
+        anchorRef.current = { row: rowIndex, col: colIdx };
+        applySelection(rowIndex, colIdx, rowIndex, colIdx);
+      },
+      onMouseEnter: () => {
+        if (selectingRef.current && anchorRef.current) {
+          applySelection(anchorRef.current.row, anchorRef.current.col, rowIndex, colIdx);
+        }
+      },
+    };
+  };
+
+  const copySelection = async () => {
+    if (cellSelection.size === 0) return message.warning('请先选中单元格');
+    let rMin = Infinity, rMax = -1, cMin = Infinity, cMax = -1;
+    cellSelection.forEach((k) => {
+      const [r, c] = k.split('|').map(Number);
+      rMin = Math.min(rMin, r); rMax = Math.max(rMax, r);
+      cMin = Math.min(cMin, c); cMax = Math.max(cMax, c);
+    });
+    const lines: string[] = [];
+    const header: string[] = [];
+    for (let c = cMin; c <= cMax; c++) header.push(SELECTABLE_COLS[c].title);
+    lines.push(header.join('\t'));
+    for (let r = rMin; r <= rMax; r++) {
+      const rec = filteredData[r];
+      const row: string[] = [];
+      for (let c = cMin; c <= cMax; c++) row.push(SELECTABLE_COLS[c].getValue(rec));
+      lines.push(row.join('\t'));
+    }
+    const text = lines.join('\n');
+    const ok = await copyToClipboard(text);
+    if (!ok) {
+      Modal.error({
+        title: '复制失败',
+        width: 560,
+        content: (
+          <div>
+            <div style={{ marginBottom: 8 }}>浏览器拒绝了剪贴板访问，你可以手动复制下面的内容：</div>
+            <Input.TextArea readOnly value={text} autoSize={{ minRows: 4, maxRows: 10 }} style={{ fontFamily: 'monospace', fontSize: 12 }} />
+          </div>
+        ),
+        okText: '复制内容',
+        onOk: () => {
+          copyToClipboard(text).then((ok2) => (ok2 ? message.success('已复制') : message.error('仍无法复制，请全选文本手动复制')));
+        },
+      });
+      return;
+    }
+    message.success(`已复制 ${cellSelection.size} 个单元格`);
+    setCellSelection(new Set());
+  };
+
+  useEffect(() => {
+    const onUp = () => { selectingRef.current = false; };
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'c' && cellSelection.size > 0) {
+        e.preventDefault();
+        copySelection();
+      }
+    };
+    window.addEventListener('mouseup', onUp);
+    window.addEventListener('keydown', onKey);
+    return () => {
+      window.removeEventListener('mouseup', onUp);
+      window.removeEventListener('keydown', onKey);
+    };
+  }, [cellSelection, filteredData, copySelection]);
+
   // ---------- 表格列 ----------
+  const renderCell = (key: string) => {
+    switch (key) {
+      case 'customer_code': return (v: any) => <CopyableCell text={v} />;
+      case 'customer_type': return (v: any) => (v === 'personal' ? '个人' : '平台');
+      case 'platform_name': return (v: any) => <CopyableCell text={v || <Text type="secondary">-</Text>} />;
+      case 'ioss_no': return (v: any) => <CopyableCell text={v} />;
+      case 'ioss_cipher': return (_v: any, record: any) => <CopyableCell text={maskIoss(record.ioss_no)} />;
+      case 'audit_type': return (v: any) => <CopyableCell text={v === 'standard' ? '常规审核' : '特殊审核'} />;
+      case 'audit_status': return (v: any) => <CopyableCell text={renderStatus(v)} copyText={AUDIT_STATUS_OPTIONS.find((o) => o.value === v)?.label || v} />;
+      case 'reject_remark': return (v: any) => (v ? <CopyableCell text={<Tooltip title={v}><span>{v}</span></Tooltip>} copyText={v} /> : <Text type="secondary">-</Text>);
+      case 'file_name': return (v: any) => (v ? <a>{v}</a> : <Text type="secondary">-</Text>);
+      default: return (v: any) => v;
+    }
+  };
+
+  const actionRender = (_: any, record: any) => (
+    <Button type="link" size="small" onClick={() => {
+      Modal.info({
+        title: '操作日志',
+        content: (
+          <Table
+            size="small"
+            pagination={false}
+            dataSource={[
+              { key: '1', time: record.create_time, operator: '系统', action: '创建', detail: '新增IOSS税号记录' },
+            ]}
+            columns={[
+              { title: '时间', dataIndex: 'time' },
+              { title: '操作人', dataIndex: 'operator' },
+              { title: '操作', dataIndex: 'action' },
+              { title: '详情', dataIndex: 'detail' },
+            ]}
+          />
+        ),
+        width: 560,
+      });
+    }}>
+      日志
+    </Button>
+  );
+
   const columns = [
     { title: '序号', key: 'index', width: 60, render: (_: any, __: any, i: number) => i + 1 },
-    { title: '客户代码', dataIndex: 'customer_code', key: 'customer_code', width: 120 },
-    {
-      title: '类型', dataIndex: 'customer_type', key: 'customer_type', width: 70,
-      render: (v: string) => (v === 'personal' ? '个人' : '平台'),
-    },
-    {
-      title: '平台名称', dataIndex: 'platform_name', key: 'platform_name', width: 100,
-      render: (v: string) => v || <Text type="secondary">-</Text>,
-    },
-    { title: 'IOSS识别码', dataIndex: 'ioss_no', key: 'ioss_no', width: 200, ellipsis: true },
-    { title: 'IOSS识别名', dataIndex: 'recognized_name', key: 'recognized_name', width: 130, ellipsis: true },
-    {
-      title: '审核类型', dataIndex: 'audit_type', key: 'audit_type', width: 90,
-      render: (v: string) => (v === 'standard' ? '常规审核' : '特殊审核'),
-    },
-    { title: '状态', dataIndex: 'audit_status', key: 'audit_status', width: 90, render: renderStatus },
-    {
-      title: '审核不通过备注', dataIndex: 'reject_remark', key: 'reject_remark', width: 180, ellipsis: true,
-      render: (v: string) => (v ? <Tooltip title={v}><span>{v}</span></Tooltip> : <Text type="secondary">-</Text>),
-    },
-    {
-      title: '注册文件', dataIndex: 'file_name', key: 'file_name', width: 120,
-      render: (v: string) => (v ? <a>{v}</a> : <Text type="secondary">-</Text>),
-    },
-    {
-      title: '操作', key: 'action', width: 70, fixed: 'right' as const,
-      render: (_: any, record: any) => (
-        <Button type="link" size="small" onClick={() => {
-          Modal.info({
-            title: '操作日志',
-            content: (
-              <Table
-                size="small"
-                pagination={false}
-                dataSource={[
-                  { key: '1', time: record.create_time, operator: '系统', action: '创建', detail: '新增IOSS税号记录' },
-                ]}
-                columns={[
-                  { title: '时间', dataIndex: 'time' },
-                  { title: '操作人', dataIndex: 'operator' },
-                  { title: '操作', dataIndex: 'action' },
-                  { title: '详情', dataIndex: 'detail' },
-                ]}
-              />
-            ),
-            width: 560,
-          });
-        }}>
-          日志
-        </Button>
-      ),
-    },
+    ...SELECTABLE_COLS.map((col, idx) => ({
+      title: col.title,
+      dataIndex: col.key,
+      key: col.key,
+      width: col.width,
+      ellipsis: col.key === 'ioss_no' || col.key === 'ioss_cipher' || col.key === 'reject_remark',
+      onCell: (record: any, rowIndex: number) => makeCellProps(record, rowIndex, idx),
+      render: renderCell(col.key),
+    })),
+    { title: '操作', key: 'action', width: 70, fixed: 'right' as const, render: actionRender },
   ];
 
   return (
@@ -273,6 +449,14 @@ const Component = () => {
             <span className="ioss-search-label">状态</span>
             <Select placeholder="全部" allowClear value={searchAuditStatus} onChange={setSearchAuditStatus} options={AUDIT_STATUS_OPTIONS} className="ioss-select" />
           </div>
+          <div className="ioss-search-item">
+            <span className="ioss-search-label">创建时间</span>
+            <DatePicker.RangePicker
+              value={searchCreateTime}
+              onChange={(v) => setSearchCreateTime(v as [Dayjs, Dayjs] | null)}
+              className="ioss-select"
+            />
+          </div>
         </div>
       </div>
 
@@ -282,6 +466,10 @@ const Component = () => {
           <Button icon={<CheckOutlined />} onClick={handleApprove} disabled={selectedRowKeys.length === 0}>审核通过</Button>
           <Button icon={<CloseOutlined />} onClick={handleReject} disabled={selectedRowKeys.length === 0}>审核不通过</Button>
           <Button type="primary" icon={<DownloadOutlined />} onClick={handleExport}>导出</Button>
+          <Button icon={<CopyOutlined />} onClick={copySelection} disabled={cellSelection.size === 0}>
+            复制选中{cellSelection.size > 0 ? `(${cellSelection.size})` : ''}
+          </Button>
+          {cellSelection.size > 0 && <Button onClick={() => setCellSelection(new Set())}>取消选中</Button>}
         </Space>
         <Space>
           <Button type="primary" icon={<SearchOutlined />} onClick={() => message.info('查询完成')}>查询</Button>
