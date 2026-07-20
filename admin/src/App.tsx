@@ -230,7 +230,7 @@ export default function App() {
               onDelete={deleteAnnotation}
             />
           )}
-          {rightPanel === 'git' && <GitPanel onRestored={() => setRefreshKey((k) => k + 1)} />}
+          {rightPanel === 'git' && <GitPanel selected={selected} onRestored={() => setRefreshKey((k) => k + 1)} />}
           {rightPanel === 'ai' && <AiCliPanel selected={selected} />}
         </div>
       )}

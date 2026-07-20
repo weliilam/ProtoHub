@@ -157,6 +157,7 @@ export default function Sidebar(props: SidebarProps) {
         <Input.Search placeholder="搜索..." size="small" allowClear onChange={(e) => setKeyword(e.target.value)} />
       </div>
       <Tabs
+        className="ph-sidebar-tabs"
         activeKey={tab}
         onChange={setTab}
         size="small"
@@ -166,7 +167,6 @@ export default function Sidebar(props: SidebarProps) {
           { key: 'doc', label: '文档' },
           { key: 'resource', label: '资源' },
         ]}
-        style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}
       />
       <div className="ph-sidebar-body">
         {tab === 'prototype' && (

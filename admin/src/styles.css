@@ -40,6 +40,19 @@ html, body, #root {
   padding: 8px;
 }
 
+/* Tabs 仅作标签切换，隐藏空内容区，避免占满空间产生大片空白 */
+.ph-sidebar-tabs .ant-tabs-content-holder {
+  display: none;
+}
+
+.ph-sidebar-tabs {
+  flex-shrink: 0;
+}
+
+.ph-sidebar-tabs .ant-tabs-nav {
+  margin-bottom: 0;
+}
+
 .ph-entry-item {
   display: flex;
   align-items: center;

@@ -1,17 +1,28 @@
 import type { Plugin } from 'vite';
 import { execFile } from 'child_process';
 import { promisify } from 'util';
-import { sendJson, sendError, readJsonBody, getPathname } from './utils';
+import path from 'path';
+import { projectRoot, sendJson, sendError, readJsonBody, getPathname, getQuery } from './utils';
 
 const execFileAsync = promisify(execFile);
 
 async function git(args: string[]): Promise<string> {
   const { stdout } = await execFileAsync('git', args, {
-    cwd: process.cwd(),
+    cwd: projectRoot,
     maxBuffer: 16 * 1024 * 1024,
     env: { ...process.env, LC_ALL: 'C.UTF-8' },
   });
   return stdout.trim();
+}
+
+/** 校验 scope 路径必须位于项目根内（如 src/prototypes/xxx） */
+function resolveScope(raw: string | null): string | null {
+  if (!raw) return null;
+  const normalized = raw.replace(/\\/g, '/').replace(/^\/+|\/+$/g, '');
+  if (!normalized || normalized.includes('..')) return null;
+  const abs = path.resolve(projectRoot, normalized);
+  if (!abs.startsWith(projectRoot)) return null;
+  return normalized;
 }
 
 export function gitApiPlugin(): Plugin {
@@ -23,11 +34,14 @@ export function gitApiPlugin(): Plugin {
         if (!pathname.startsWith('/api/git/')) return next();
 
         try {
-          // 状态：当前分支 + 变更文件数
+          // 状态：当前分支 + 变更数（可按 scope 过滤）
           if (pathname === '/api/git/status' && req.method === 'GET') {
             try {
+              const scope = resolveScope(getQuery(req).get('scope'));
               const branch = await git(['rev-parse', '--abbrev-ref', 'HEAD']);
-              const porcelain = await git(['status', '--porcelain']);
+              const args = ['status', '--porcelain'];
+              if (scope) args.push('--', scope);
+              const porcelain = await git(args);
               const changed = porcelain ? porcelain.split('\n').length : 0;
               return sendJson(res, { success: true, data: { branch, changed, initialized: true } });
             } catch {
@@ -35,9 +49,12 @@ export function gitApiPlugin(): Plugin {
             }
           }
 
-          // 快照列表
+          // 快照列表（可按 scope 过滤，只显示影响该路径的提交）
           if (pathname === '/api/git/log' && req.method === 'GET') {
-            const raw = await git(['log', '--pretty=format:%h|%ad|%s', '--date=format:%Y-%m-%d %H:%M', '-30']);
+            const scope = resolveScope(getQuery(req).get('scope'));
+            const args = ['log', '--pretty=format:%h|%ad|%s', '--date=format:%Y-%m-%d %H:%M', '-30'];
+            if (scope) args.push('--', scope);
+            const raw = await git(args);
             const list = raw
               ? raw.split('\n').map((line) => {
                   const [hash, date, ...msg] = line.split('|');
@@ -47,16 +64,20 @@ export function gitApiPlugin(): Plugin {
             return sendJson(res, { success: true, data: list });
           }
 
-          // 创建快照
+          // 创建快照（scope 存在时只提交该路径的变更）
           if (pathname === '/api/git/snapshot' && req.method === 'POST') {
-            const body = await readJsonBody<{ message?: string }>(req);
-            const message = (body.message || `快照 ${new Date().toLocaleString('zh-CN')}`).slice(0, 200);
-            await git(['add', '-A']);
+            const body = await readJsonBody<{ message?: string; scope?: string }>(req);
+            const scope = resolveScope(body.scope ?? null);
+            await git(['add', '-A', '--', scope || '.']);
             try {
-              await git(['commit', '-m', message]);
+              const defaultMsg = `快照 ${new Date().toLocaleString('zh-CN')}`;
+              const message = (body.message || defaultMsg).slice(0, 200);
+              const commitArgs = ['commit', '-m', message];
+              if (scope) commitArgs.push('--', scope);
+              await git(commitArgs);
             } catch (e: any) {
               if (String(e.message).includes('nothing to commit')) {
-                return sendError(res, '没有需要保存的变更');
+                return sendError(res, scope ? '该原型没有需要保存的变更' : '没有需要保存的变更');
               }
               throw e;
             }
@@ -64,11 +85,12 @@ export function gitApiPlugin(): Plugin {
             return sendJson(res, { success: true, data: { hash } });
           }
 
-          // 回滚到指定快照（仅恢复工作区文件，可再次快照固化为新版本）
+          // 回滚到指定快照（scope 存在时只恢复该路径，不影响其他文件）
           if (pathname === '/api/git/restore' && req.method === 'POST') {
-            const body = await readJsonBody<{ hash?: string }>(req);
+            const body = await readJsonBody<{ hash?: string; scope?: string }>(req);
             if (!body.hash || !/^[0-9a-f]{6,40}$/i.test(body.hash)) return sendError(res, '快照标识不合法');
-            await git(['checkout', body.hash, '--', '.']);
+            const scope = resolveScope(body.scope ?? null);
+            await git(['checkout', body.hash, '--', scope || '.']);
             return sendJson(res, { success: true });
           }
 

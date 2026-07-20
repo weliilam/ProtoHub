@@ -42,12 +42,17 @@ export const api = {
     request(`/api/data/tables/${encodeURIComponent(name)}`, { method: 'PUT', body: JSON.stringify({ rows }) }),
   deleteTable: (name: string) => request(`/api/data/tables/${encodeURIComponent(name)}`, { method: 'DELETE' }),
 
-  // Git
-  gitStatus: () => request<{ branch?: string; changed?: number; initialized: boolean }>('/api/git/status'),
-  gitLog: () => request<GitLogItem[]>('/api/git/log'),
-  gitSnapshot: (message: string) =>
-    request<{ hash: string }>('/api/git/snapshot', { method: 'POST', body: JSON.stringify({ message }) }),
-  gitRestore: (hash: string) => request('/api/git/restore', { method: 'POST', body: JSON.stringify({ hash }) }),
+  // Git（scope 为项目内路径，如 src/prototypes/xxx；不传则作用于整个仓库）
+  gitStatus: (scope?: string) =>
+    request<{ branch?: string; changed?: number; initialized: boolean }>(
+      `/api/git/status${scope ? `?scope=${encodeURIComponent(scope)}` : ''}`,
+    ),
+  gitLog: (scope?: string) =>
+    request<GitLogItem[]>(`/api/git/log${scope ? `?scope=${encodeURIComponent(scope)}` : ''}`),
+  gitSnapshot: (message: string, scope?: string) =>
+    request<{ hash: string }>('/api/git/snapshot', { method: 'POST', body: JSON.stringify({ message, scope }) }),
+  gitRestore: (hash: string, scope?: string) =>
+    request('/api/git/restore', { method: 'POST', body: JSON.stringify({ hash, scope }) }),
 
   // AI CLI
   aiStatus: () => request<Record<string, CliStatus>>('/api/ai/status'),
