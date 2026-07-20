@@ -1,0 +1,28 @@
+{
+  "name": "proto-hub",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Proto Hub - 本地 AI 原型工作台（原型管理 / 预览 / 批注 / Git 快照 / AI CLI）",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "start": "vite",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@ant-design/icons": "^5.6.1",
+    "antd": "^5.26.0",
+    "dayjs": "^1.11.13",
+    "marked": "^12.0.2",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "devDependencies": {
+    "@types/node": "^26.1.1",
+    "@types/react": "^18.3.12",
+    "@types/react-dom": "^18.3.1",
+    "@vitejs/plugin-react": "^4.3.4",
+    "typescript": "^5.6.3",
+    "vite": "^5.4.11"
+  }
+}

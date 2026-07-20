@@ -1,0 +1,7 @@
+[
+  { "key": "1", "id": "YT1000001", "customer": "深圳市云途科技", "channel": "标快", "status": "已发货", "amount": 326.5 },
+  { "key": "2", "id": "YT1000002", "customer": "杭州跨境电商", "channel": "特惠", "status": "已预报", "amount": 88.0 },
+  { "key": "3", "id": "YT1000003", "customer": "广州外贸集团", "channel": "标快", "status": "待确认", "amount": 1520.75 },
+  { "key": "4", "id": "YT1000004", "customer": "义乌小商品城", "channel": "经济", "status": "异常", "amount": 45.2 },
+  { "key": "5", "id": "YT1000005", "customer": "东莞制造", "channel": "标快", "status": "已发货", "amount": 672.0 }
+]

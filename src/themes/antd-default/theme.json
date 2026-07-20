@@ -1,0 +1,9 @@
+{
+  "name": "antd-default",
+  "title": "Ant Design 默认主题",
+  "token": {
+    "colorPrimary": "#1677ff",
+    "borderRadius": 6,
+    "fontSize": 14
+  }
+}
