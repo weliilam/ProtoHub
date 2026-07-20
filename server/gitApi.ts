@@ -68,18 +68,21 @@ export function gitApiPlugin(): Plugin {
           if (pathname === '/api/git/snapshot' && req.method === 'POST') {
             const body = await readJsonBody<{ message?: string; scope?: string }>(req);
             const scope = resolveScope(body.scope ?? null);
+            // 1. 清空暂存区（不动工作区文件），确保本次提交只包含目标路径
+            try { await git(['reset', '-q']); } catch { /* 空仓库时忽略 */ }
+            // 2. 暂存目标路径（含新增/修改/删除）
             await git(['add', '-A', '--', scope || '.']);
+            // 3. 检查暂存区是否有内容
+            const staged = await git(['diff', '--cached', '--name-only']);
+            if (!staged) {
+              return sendError(res, scope ? '该原型没有需要保存的变更' : '没有需要保存的变更');
+            }
             try {
               const defaultMsg = `快照 ${new Date().toLocaleString('zh-CN')}`;
               const message = (body.message || defaultMsg).slice(0, 200);
-              const commitArgs = ['commit', '-m', message];
-              if (scope) commitArgs.push('--', scope);
-              await git(commitArgs);
+              await git(['commit', '-m', message]);
             } catch (e: any) {
-              if (String(e.message).includes('nothing to commit')) {
-                return sendError(res, scope ? '该原型没有需要保存的变更' : '没有需要保存的变更');
-              }
-              throw e;
+              return sendError(res, `提交失败：${e.stderr || e.message}`, 500);
             }
             const hash = await git(['rev-parse', '--short', 'HEAD']);
             return sendJson(res, { success: true, data: { hash } });
