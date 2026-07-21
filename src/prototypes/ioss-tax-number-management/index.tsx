@@ -134,19 +134,19 @@ const SELECTABLE_COLS = [
 ];
 
 const MOCK_DATA = [
-  { key: '1', customer_code: 'CN0C427089', customer_type: 'personal', platform_name: '', ioss_no: 'IOSS26199132842172712763', recognized_name: '深圳王小姐', audit_type: 'standard', audit_status: 'rejected', reject_remark: '', file_name: '', create_time: '2026-07-18 09:30:00' },
-  { key: '2', customer_code: 'CN0C709682', customer_type: 'platform', platform_name: 'Temu', ioss_no: 'IOSS26197153103093419470', recognized_name: 'Temu主账号', audit_type: 'standard', audit_status: 'rejected', reject_remark: '', file_name: '', create_time: '2026-07-18 10:15:00' },
-  { key: '3', customer_code: 'CN0C937165', customer_type: 'personal', platform_name: '', ioss_no: 'IOSS26196231037056487125', recognized_name: '广州李总', audit_type: 'standard', audit_status: 'rejected', reject_remark: '', file_name: '', create_time: '2026-07-17 14:22:00' },
-  { key: '4', customer_code: 'CN0564293', customer_type: 'platform', platform_name: 'eBay', ioss_no: 'IOSS26192162819097857388', recognized_name: 'eBay欧洲站', audit_type: 'standard', audit_status: 'rejected', reject_remark: '', file_name: '', create_time: '2026-07-17 16:40:00' },
-  { key: '5', customer_code: 'CN0593140', customer_type: 'platform', platform_name: 'Amazon', ioss_no: 'IOSS26191225817084860532', recognized_name: '亚马逊欧洲主号', audit_type: 'standard', audit_status: 'rejected', reject_remark: '', file_name: '', create_time: '2026-07-16 11:05:00' },
-  { key: '6', customer_code: 'CN0593140', customer_type: 'platform', platform_name: 'Amazon', ioss_no: 'IOSS26191225357029659987', recognized_name: '亚马逊欧洲备用', audit_type: 'standard', audit_status: 'rejected', reject_remark: '', file_name: '', create_time: '2026-07-16 11:30:00' },
-  { key: '7', customer_code: 'CN0593140', customer_type: 'platform', platform_name: 'Amazon', ioss_no: 'IOSS26191225244081771546', recognized_name: '亚马逊英国站', audit_type: 'standard', audit_status: 'rejected', reject_remark: '', file_name: '', create_time: '2026-07-16 12:00:00' },
-  { key: '8', customer_code: 'CN12332', customer_type: 'personal', platform_name: '', ioss_no: 'IOSS26182154935001369452', recognized_name: '上海张工', audit_type: 'standard', audit_status: 'rejected', reject_remark: '经欧盟海关验证，该IOSS号已在黑名单库中，无法备案通过', file_name: '', create_time: '2026-07-15 08:50:00' },
-  { key: '9', customer_code: 'CN0C897615', customer_type: 'personal', platform_name: '', ioss_no: 'IOSS26181102900107079815', recognized_name: '北京陈先生', audit_type: 'standard', audit_status: 'rejected', reject_remark: '', file_name: '', create_time: '2026-07-15 09:20:00' },
-  { key: '10', customer_code: 'CN3979906', customer_type: 'personal', platform_name: '', ioss_no: 'IOSS26180175502201997631', recognized_name: '杭州刘女士', audit_type: 'standard', audit_status: 'rejected', reject_remark: '', file_name: '', create_time: '2026-07-15 10:10:00' },
-  { key: '11', customer_code: 'CN0C123456', customer_type: 'platform', platform_name: 'Shopify', ioss_no: 'IOSS26193112200345678901', recognized_name: 'Shopify独立站', audit_type: 'special', audit_status: 'approved', reject_remark: '', file_name: 'shopify_registration.pdf', create_time: '2026-07-14 15:30:00' },
-  { key: '12', customer_code: 'CN0C654321', customer_type: 'platform', platform_name: 'AliExpress', ioss_no: 'IOSS26190223344556677889', recognized_name: '速卖通官方', audit_type: 'standard', audit_status: 'pending', reject_remark: '', file_name: '', create_time: '2026-07-14 16:00:00' },
-  { key: '13', customer_code: 'CN0C111222', customer_type: 'personal', platform_name: '', ioss_no: 'IOSS26193334445556667778', recognized_name: '深圳赵总', audit_type: 'standard', audit_status: 'blacklisted', reject_remark: '涉嫌多账号滥用IOSS号', file_name: '', create_time: '2026-07-13 13:00:00' },
+  { key: '1', customer_code: 'CN0C427089', customer_type: 'personal', platform_name: '', ioss_no: 'IOSS26199132842172712763', recognized_name: '深圳王小姐', audit_type: 'standard', audit_status: 'rejected', reject_remark: '', file_name: '', create_time: '2026-07-18 09:30:00', registered_company: '深圳市王女士贸易行', registered_country: '中国', street_address: '南山区科技园路1号', city: '深圳', state_province: '广东', postal_code: '518000', phone: '13800001111', email: 'wang@163.com', salesperson: '张三', auditor: '李四', audit_time: '2026-07-18 10:00:00' },
+  { key: '2', customer_code: 'CN0C709682', customer_type: 'platform', platform_name: 'Temu', ioss_no: 'IOSS26197153103093419470', recognized_name: 'Temu主账号', audit_type: 'standard', audit_status: 'rejected', reject_remark: '', file_name: '', create_time: '2026-07-18 10:15:00', registered_company: 'Temu（深圳）科技有限公司', registered_country: '中国', street_address: '福田区华强北路2号', city: '深圳', state_province: '广东', postal_code: '518001', phone: '13900002222', email: 'temu@temu.com', salesperson: '张三', auditor: '李四', audit_time: '2026-07-18 11:00:00' },
+  { key: '3', customer_code: 'CN0C937165', customer_type: 'personal', platform_name: '', ioss_no: 'IOSS26196231037056487125', recognized_name: '广州李总', audit_type: 'standard', audit_status: 'rejected', reject_remark: '', file_name: '', create_time: '2026-07-17 14:22:00', registered_company: '广州市李氏贸易有限公司', registered_country: '中国', street_address: '天河区珠江新城路3号', city: '广州', state_province: '广东', postal_code: '510000', phone: '13700003333', email: 'li@126.com', salesperson: '王五', auditor: '李四', audit_time: '2026-07-17 15:00:00' },
+  { key: '4', customer_code: 'CN0564293', customer_type: 'platform', platform_name: 'eBay', ioss_no: 'IOSS26192162819097857388', recognized_name: 'eBay欧洲站', audit_type: 'standard', audit_status: 'rejected', reject_remark: '', file_name: '', create_time: '2026-07-17 16:40:00', registered_company: 'eBay Europe S.à r.l.', registered_country: '卢森堡', street_address: '22 Boulevard Royal', city: '卢森堡', state_province: '-', postal_code: '2449', phone: '+352123456', email: 'eu@ebay.com', salesperson: '王五', auditor: '赵六', audit_time: '2026-07-17 17:00:00' },
+  { key: '5', customer_code: 'CN0593140', customer_type: 'platform', platform_name: 'Amazon', ioss_no: 'IOSS26191225817084860532', recognized_name: '亚马逊欧洲主号', audit_type: 'standard', audit_status: 'rejected', reject_remark: '', file_name: '', create_time: '2026-07-16 11:05:00', registered_company: 'Amazon EU S.à r.l.', registered_country: '卢森堡', street_address: '5 Rue Plaetis', city: '卢森堡', state_province: '-', postal_code: '2338', phone: '+352678601', email: 'eu@amazon.com', salesperson: '张三', auditor: '赵六', audit_time: '2026-07-16 12:00:00' },
+  { key: '6', customer_code: 'CN0593140', customer_type: 'platform', platform_name: 'Amazon', ioss_no: 'IOSS26191225357029659987', recognized_name: '亚马逊欧洲备用', audit_type: 'standard', audit_status: 'rejected', reject_remark: '', file_name: '', create_time: '2026-07-16 11:30:00', registered_company: 'Amazon EU S.à r.l.', registered_country: '卢森堡', street_address: '5 Rue Plaetis', city: '卢森堡', state_province: '-', postal_code: '2338', phone: '+352678602', email: 'eu2@amazon.com', salesperson: '张三', auditor: '赵六', audit_time: '2026-07-16 12:30:00' },
+  { key: '7', customer_code: 'CN0593140', customer_type: 'platform', platform_name: 'Amazon', ioss_no: 'IOSS26191225244081771546', recognized_name: '亚马逊英国站', audit_type: 'standard', audit_status: 'rejected', reject_remark: '', file_name: '', create_time: '2026-07-16 12:00:00', registered_company: 'Amazon UK Services Ltd.', registered_country: '英国', street_address: '1 Principal Place', city: '伦敦', state_province: '英格兰', postal_code: 'EC2A 2FA', phone: '+4420701234', email: 'uk@amazon.com', salesperson: '张三', auditor: '赵六', audit_time: '2026-07-16 13:00:00' },
+  { key: '8', customer_code: 'CN12332', customer_type: 'personal', platform_name: '', ioss_no: 'IOSS26182154935001369452', recognized_name: '上海张工', audit_type: 'standard', audit_status: 'rejected', reject_remark: '经欧盟海关验证，该IOSS号已在黑名单库中，无法备案通过', file_name: '', create_time: '2026-07-15 08:50:00', registered_company: '上海市张工电子商务工作室', registered_country: '中国', street_address: '浦东新区世纪大道4号', city: '上海', state_province: '上海', postal_code: '200000', phone: '13600004444', email: 'zhang@qq.com', salesperson: '王五', auditor: '李四', audit_time: '2026-07-15 09:00:00' },
+  { key: '9', customer_code: 'CN0C897615', customer_type: 'personal', platform_name: '', ioss_no: 'IOSS26181102900107079815', recognized_name: '北京陈先生', audit_type: 'standard', audit_status: 'rejected', reject_remark: '', file_name: '', create_time: '2026-07-15 09:20:00', registered_company: '北京市陈先生商贸有限公司', registered_country: '中国', street_address: '朝阳区建国路5号', city: '北京', state_province: '北京', postal_code: '100000', phone: '13500005555', email: 'chen@163.com', salesperson: '王五', auditor: '李四', audit_time: '2026-07-15 10:00:00' },
+  { key: '10', customer_code: 'CN3979906', customer_type: 'personal', platform_name: '', ioss_no: 'IOSS26180175502201997631', recognized_name: '杭州刘女士', audit_type: 'standard', audit_status: 'rejected', reject_remark: '', file_name: '', create_time: '2026-07-15 10:10:00', registered_company: '杭州市刘女士贸易有限公司', registered_country: '中国', street_address: '西湖区文三路6号', city: '杭州', state_province: '浙江', postal_code: '310000', phone: '13400006666', email: 'liu@126.com', salesperson: '张三', auditor: '李四', audit_time: '2026-07-15 11:00:00' },
+  { key: '11', customer_code: 'CN0C123456', customer_type: 'platform', platform_name: 'Shopify', ioss_no: 'IOSS26193112200345678901', recognized_name: 'Shopify独立站', audit_type: 'special', audit_status: 'approved', reject_remark: '', file_name: 'shopify_registration.pdf', create_time: '2026-07-14 15:30:00', registered_company: 'Shopify独立站（杭州）有限公司', registered_country: '中国', street_address: '滨江区网商路7号', city: '杭州', state_province: '浙江', postal_code: '310051', phone: '0571-88887777', email: 'shopify@shop.com', salesperson: '王五', auditor: '赵六', audit_time: '2026-07-14 16:00:00' },
+  { key: '12', customer_code: 'CN0C654321', customer_type: 'platform', platform_name: 'AliExpress', ioss_no: 'IOSS26190223344556677889', recognized_name: '速卖通官方', audit_type: 'standard', audit_status: 'pending', reject_remark: '', file_name: '', create_time: '2026-07-14 16:00:00', registered_company: 'AliExpress（杭州）网络技术有限公司', registered_country: '中国', street_address: '余杭区文一西路8号', city: '杭州', state_province: '浙江', postal_code: '311121', phone: '0571-88886666', email: 'aliexpress@aliexpress.com', salesperson: '张三', auditor: '-', audit_time: '-' },
+  { key: '13', customer_code: 'CN0C111222', customer_type: 'personal', platform_name: '', ioss_no: 'IOSS26193334445556667778', recognized_name: '深圳赵总', audit_type: 'standard', audit_status: 'blacklisted', reject_remark: '涉嫌多账号滥用IOSS号', file_name: '', create_time: '2026-07-13 13:00:00', registered_company: '深圳市赵总贸易有限公司', registered_country: '中国', street_address: '宝安区西乡大道9号', city: '深圳', state_province: '广东', postal_code: '518101', phone: '13300007777', email: 'zhao@qq.com', salesperson: '王五', auditor: '赵六', audit_time: '2026-07-13 14:00:00' },
 ];
 
 // ========================= 组件 =========================
@@ -221,18 +221,28 @@ const Component = () => {
 
   const handleExport = () => {
     if (filteredData.length === 0) return message.warning('没有可导出的数据');
-    const headers = ['客户代码', '类型', '平台名称', 'IOSS识别码', 'IOSS密文', '审核类型', '状态', '审核不通过备注', '注册文件', '创建时间'];
+    const headers = ['客户代码', '类型', '平台名称', 'IOSS识别码', 'IOSS密文', '注册公司名称', '注册国家', '街道地址', '城市', '州省', '邮编', '电话', '邮箱', '创建时间', '业务员', '审核人', '审核时间', '审核类型', '审核状态', '注册文件'];
     const rows = filteredData.map((item) => [
       item.customer_code,
       item.customer_type === 'personal' ? '个人' : '平台',
       item.platform_name || '-',
       item.ioss_no,
       maskIoss(item.ioss_no),
+      item.registered_company || '-',
+      item.registered_country || '-',
+      item.street_address || '-',
+      item.city || '-',
+      item.state_province || '-',
+      item.postal_code || '-',
+      item.phone || '-',
+      item.email || '-',
+      item.create_time,
+      item.salesperson || '-',
+      item.auditor || '-',
+      item.audit_time || '-',
       item.audit_type === 'standard' ? '常规审核' : '特殊审核',
       AUDIT_STATUS_OPTIONS.find((o) => o.value === item.audit_status)?.label || item.audit_status,
-      item.reject_remark,
       item.file_name,
-      item.create_time,
     ]);
     const csvContent = [headers, ...rows].map((r) => r.join(',')).join('\n');
     const blob = new Blob([`\uFEFF${csvContent}`], { type: 'text/csv;charset=utf-8;' });
@@ -351,7 +361,18 @@ const Component = () => {
       case 'customer_type': return (v: any) => (v === 'personal' ? '个人' : '平台');
       case 'platform_name': return (v: any) => <CopyableCell text={v || <Text type="secondary">-</Text>} />;
       case 'ioss_no': return (v: any) => <CopyableCell text={v} />;
-      case 'ioss_cipher': return (_v: any, record: any) => <CopyableCell text={maskIoss(record.ioss_no)} />;
+      case 'ioss_cipher': return (_v: any, record: any) => (
+        <Button
+          size="small"
+          icon={<CopyOutlined />}
+          onClick={(e) => {
+            e.stopPropagation();
+            copyToClipboard(maskIoss(record.ioss_no)).then((ok) => (ok ? message.success('已复制密文') : message.error('复制失败')));
+          }}
+        >
+          复制
+        </Button>
+      );
       case 'audit_type': return (v: any) => <CopyableCell text={v === 'standard' ? '常规审核' : '特殊审核'} />;
       case 'audit_status': return (v: any) => <CopyableCell text={renderStatus(v)} copyText={AUDIT_STATUS_OPTIONS.find((o) => o.value === v)?.label || v} />;
       case 'reject_remark': return (v: any) => (v ? <CopyableCell text={<Tooltip title={v}><span>{v}</span></Tooltip>} copyText={v} /> : <Text type="secondary">-</Text>);
