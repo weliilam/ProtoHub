@@ -84,6 +84,27 @@ const MOCK_DETENTION: Record<string, { code: string; reason: string; createTime:
   ],
 };
 
+// Mock 拦截原因（拦截类型 + 助记码 + 中文名称 + 问题内容）
+interface InterceptReason {
+  code: string;
+  category: string;
+  name: string;
+  content: string;
+}
+const MOCK_INTERCEPT_REASONS: InterceptReason[] = [
+  { code: 'A1', category: '客户原因', name: '客户要求暂扣', content: '您好!贵司要求暂扣此件,我司已按扣件处理。如需放行出货,请及时与我司客服联系,谢谢。' },
+  { code: 'A10', category: '客户原因', name: '客户来货面单断针', content: '您好!贵司来货面单出现断针,我司已按扣件处理。' },
+  { code: 'A11', category: '客户原因', name: 'FBA来货无云途面单', content: '您好!贵司来货FBA无云途面单,我司已按扣件处理。' },
+  { code: 'A5', category: '客户原因', name: '空包裹', content: '您好!此票包裹内无实物,发现破损为空包裹。' },
+  { code: 'A7', category: '客户原因', name: 'HK派送件超重超长', content: '您好!此票香港派送件,因为单件毛重超过限制,我司已按扣件处理。' },
+  { code: 'A9', category: '客户原因', name: '已理赔订单(找实拍图)', content: '此订单在网上订单已经理赔,仓库扣件只做登记处理。' },
+  { code: 'B1', category: '货物原因', name: '预报重量与实际重量不符', content: '您好!贵司提供参考重量为****KG,我司称重实重为****KG,差异较大,需核实后处理。' },
+  { code: 'B7', category: '货物原因', name: '预报(申报)数量与实收不符', content: '您好!内件****票,司申报数量****个,我司实收数量****个,数量不符需核实。' },
+  { code: 'B8', category: '货物原因', name: '包装简陋不合格/包装破损', content: '您好!此票包装简陋无防护不合格,在运输过程中可能损坏,我司已按扣件处理。' },
+  { code: 'B9', category: '货物原因', name: '包装压坏', content: '您好!此票外箱有件压坏,现箱已压坏需换箱,我司已按扣件处理。' },
+];
+const INTERCEPT_CATEGORY_OPTIONS = ['全部', '客户原因', '货物原因'].map(v => ({ value: v, label: v }));
+
 // ========================= Mock 数据 =========================
 
 const ORDER_STATUS_OPTIONS = ['已预报', '已审核', '已签入', '已配载', '已出库', '运输中', '已完成', '已取消'].map(v => ({ value: v, label: v }));
@@ -152,6 +173,13 @@ const B2BOrderList = () => {
   });
   const [selectedRowKeys, setSelectedRowKeys] = useState<string[]>([]);
 
+  // ---------- 拦截 ----------
+  const [interceptModalOpen, setInterceptModalOpen] = useState(false);
+  const [interceptCategory, setInterceptCategory] = useState<string>('全部');
+  const [interceptSearch, setInterceptSearch] = useState('');
+  const [interceptSelectedCode, setInterceptSelectedCode] = useState<string | null>(null);
+  const [interceptRemark, setInterceptRemark] = useState('');
+
   // ---------- 跟进 ----------
   const [followUpHistory, setFollowUpHistory] = useState<Record<string, { time: string; operator: string; content: string; hidden?: boolean }[]>>(MOCK_FOLLOW_UP_HISTORY);
   const [detentionModalOpen, setDetentionModalOpen] = useState(false);
@@ -159,10 +187,6 @@ const B2BOrderList = () => {
   const [followUpModalOpen, setFollowUpModalOpen] = useState(false);
   const [followUpRecord, setFollowUpRecord] = useState<OrderRecord | null>(null);
   const [followUpContent, setFollowUpContent] = useState('');
-  // 拦截
-  const [interceptModalOpen, setInterceptModalOpen] = useState(false);
-  const [interceptReason, setInterceptReason] = useState<string | undefined>(undefined);
-  const [interceptRemark, setInterceptRemark] = useState('');
 
   // ---------- 表格 ----------
   const [form] = Form.useForm();
@@ -323,78 +347,6 @@ const B2BOrderList = () => {
     setFollowUpModalOpen(false);
   }, [followUpContent, followUpRecord]);
 
-  // ==================== 导出 ====================
-  const downloadCSV = (filename: string, headers: string[], rows: string[][]) => {
-    const BOM = '\uFEFF';
-    const csv = BOM + headers.join(',') + '\n' + rows.map(r => r.map(c => `"${(c || '').replace(/"/g, '""')}"`).join(',')).join('\n');
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url; a.download = filename; a.click();
-    URL.revokeObjectURL(url);
-  };
-
-  const handleExportFollowUp = useCallback(() => {
-    const headers = ['YT单号', '跟进人', '跟进备注', '跟进时间'];
-    const rows: string[][] = [];
-    MOCK_DATA.forEach((r) => {
-      const history = followUpHistory[r.ytOrderNo] || [];
-      if (r.follower) {
-        history.filter(h => !h.hidden).forEach(h => rows.push([r.ytOrderNo, r.follower, h.content, h.time]));
-      }
-    });
-    if (rows.length === 0) { message.warning('没有跟进记录可导出'); return; }
-    downloadCSV(`跟进记录导出_${new Date().toISOString().slice(0,10)}.csv`, headers, rows);
-    message.success(`已导出 ${rows.length} 条跟进记录`);
-  }, [followUpHistory]);
-
-  const handleExportDetention = useCallback(() => {
-    const headers = ['YT单号', '扣件原因', '扣件生成时间', '扣件完成时间'];
-    const rows: string[][] = [];
-    MOCK_DATA.forEach((r) => {
-      const reasons = MOCK_DETENTION[r.ytOrderNo];
-      if (reasons?.length) {
-        reasons.forEach(d => rows.push([r.ytOrderNo, d.reason, d.createTime, d.finishTime || '未完成']));
-      }
-    });
-    if (rows.length === 0) { message.warning('没有扣件记录可导出'); return; }
-    downloadCSV(`扣件原因导出_${new Date().toISOString().slice(0,10)}.csv`, headers, rows);
-    message.success(`已导出 ${rows.length} 条扣件记录`);
-  }, []);
-
-  const handleMoreMenu = useCallback(({ key }: { key: string }) => {
-    if (key === 'export-followup') handleExportFollowUp();
-    else if (key === 'export-detention') handleExportDetention();
-    else message.info(`功能 "${key}" 待接入后台（原型演示）`);
-  }, [handleExportFollowUp, handleExportDetention]);
-
-  // ==================== 拦截 ====================
-  const handleIntercept = useCallback(() => {
-    if (selectedRowKeys.length === 0) { message.warning('请先勾选需要拦截的订单'); return; }
-    setInterceptReason(undefined);
-    setInterceptRemark('');
-    setInterceptModalOpen(true);
-  }, [selectedRowKeys]);
-
-  const handleInterceptSubmit = useCallback(() => {
-    if (!interceptReason) { message.warning('请选择拦截原因'); return; }
-    if (interceptReason === '客户要求暂扣' && !interceptRemark.trim()) {
-      message.warning('拦截原因选择"客户要求暂扣"时，拦截备注为必填项');
-      return;
-    }
-    message.success(`已拦截 ${selectedRowKeys.length} 条订单（原因：${interceptReason}）`);
-    setInterceptModalOpen(false);
-    setSelectedRowKeys([]);
-  }, [interceptReason, interceptRemark, selectedRowKeys]);
-
-  const interceptReasonOptions = [
-    { value: '客户要求暂扣', label: '客户要求暂扣' },
-    { value: '地址异常', label: '地址异常' },
-    { value: '货品异常', label: '货品异常' },
-    { value: '费用异常', label: '费用异常' },
-    { value: '其他', label: '其他' },
-  ];
-
   const handleClaim = useCallback(() => {
     if (selectedRowKeys.length === 0) { message.warning('请先勾选需要认领的订单'); return; }
     Modal.confirm({
@@ -422,13 +374,46 @@ const B2BOrderList = () => {
     });
   }, [selectedRowKeys]);
 
+  // ==================== 拦截 ====================
+  const handleIntercept = useCallback(() => {
+    if (selectedRowKeys.length === 0) { message.warning('请先勾选需要拦截的订单'); return; }
+    setInterceptCategory('全部');
+    setInterceptSearch('');
+    setInterceptSelectedCode(null);
+    setInterceptRemark('');
+    setInterceptModalOpen(true);
+  }, [selectedRowKeys]);
+
+  // 过滤后的拦截原因列表
+  const filteredInterceptReasons = MOCK_INTERCEPT_REASONS.filter(r => {
+    const catOk = interceptCategory === '全部' || r.category === interceptCategory;
+    const search = interceptSearch.trim().toLowerCase();
+    const searchOk = !search || r.code.toLowerCase().includes(search) || r.name.includes(interceptSearch) || r.content.includes(interceptSearch);
+    return catOk && searchOk;
+  });
+
+  const handleSelectInterceptRow = (record: InterceptReason) => {
+    setInterceptSelectedCode(record.code);
+    // 选中后，备注默认填充为该原因的问题内容，用户可继续编辑
+    setInterceptRemark(record.content);
+  };
+
+  const handleInterceptSubmit = useCallback(() => {
+    if (!interceptSelectedCode) { message.warning('请先选择一条拦截原因'); return; }
+    const selected = MOCK_INTERCEPT_REASONS.find(r => r.code === interceptSelectedCode);
+    message.success(`已拦截 ${selectedRowKeys.length} 条订单（原因：${selected?.code} ${selected?.name}）`);
+    setInterceptModalOpen(false);
+    setSelectedRowKeys([]);
+  }, [interceptSelectedCode, interceptRemark, selectedRowKeys]);
+
+  const selectedInterceptItem = MOCK_INTERCEPT_REASONS.find(r => r.code === interceptSelectedCode);
+
   const moreMenuItems = [
-    { key: 'export-followup', label: '跟进记录导出' },
-    { key: 'export-detention', label: '扣件原因导出' },
-    { type: 'divider' as const },
     { key: '1', label: '导出全部' },
-    { key: '2', label: '打印运单' },
-    { key: '3', label: '列配置' },
+    { key: '2', label: '导出当前页' },
+    { key: '3', label: '打印运单' },
+    { type: 'divider' as const },
+    { key: '4', label: '列配置' },
   ];
 
   return (
@@ -604,8 +589,8 @@ const B2BOrderList = () => {
           <Button danger disabled={selectedRowKeys.length === 0} icon={<DeleteOutlined />}>删除</Button>
           <Button icon={<ReloadOutlined />} onClick={handleRefresh}>刷新</Button>
           <Button icon={<CopyOutlined />}>复制显示列</Button>
-          <Dropdown menu={{ items: moreMenuItems, onClick: handleMoreMenu }}>
-            <Button>导出 <DownOutlined /></Button>
+          <Dropdown menu={{ items: moreMenuItems }}>
+            <Button>更多 <DownOutlined /></Button>
           </Dropdown>
           <Tooltip title="自定义列展示">
             <Button icon={<SettingOutlined />} />
@@ -721,44 +706,78 @@ const B2BOrderList = () => {
         )}
       </Modal>
 
-      {/* 拦截弹窗 */}
+      {/* 拦截弹窗：拦截类型 + 搜索 + 列表 + 选择的拦截内容 + 备注 */}
       <Modal
-        title="批量拦截"
+        title="拦截"
         open={interceptModalOpen}
         onCancel={() => setInterceptModalOpen(false)}
-        width={480}
+        width={780}
         footer={[
           <Button key="cancel" onClick={() => setInterceptModalOpen(false)}>取消</Button>,
-          <Button key="submit" type="primary" danger onClick={handleInterceptSubmit}>确认拦截</Button>,
+          <Button key="submit" type="primary" onClick={handleInterceptSubmit}>确定</Button>,
         ]}
       >
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginTop: 8 }}>
-          <div style={{ fontSize: 13, color: '#666' }}>
-            已选择 <b>{selectedRowKeys.length}</b> 条订单进行拦截
-          </div>
-          <div>
-            <div style={{ marginBottom: 4, fontSize: 13 }}>拦截原因 <span style={{ color: 'red' }}>*</span></div>
+        <div style={{ marginBottom: 12 }}>
+          <span style={{ marginRight: 16 }}>
+            拦截类型：
             <Select
-              placeholder="请选择拦截原因"
-              style={{ width: '100%' }}
-              value={interceptReason}
-              onChange={(v) => { setInterceptReason(v); if (v !== '客户要求暂扣') setInterceptRemark(''); }}
-              options={interceptReasonOptions}
+              value={interceptCategory}
+              onChange={setInterceptCategory}
+              options={INTERCEPT_CATEGORY_OPTIONS}
+              style={{ width: 160 }}
             />
-          </div>
-          <div>
-            <div style={{ marginBottom: 4, fontSize: 13 }}>
-              拦截备注
-              {interceptReason === '客户要求暂扣' && <span style={{ color: 'red' }}> *必填</span>}
-            </div>
-            <Input.TextArea
-              placeholder={interceptReason === '客户要求暂扣' ? '拦截原因为"客户要求暂扣"时，拦截备注为必填项' : '请输入拦截备注（选填）'}
-              rows={4}
-              value={interceptRemark}
-              onChange={(e) => setInterceptRemark(e.target.value)}
-              status={interceptReason === '客户要求暂扣' && !interceptRemark.trim() ? 'warning' : undefined}
+          </span>
+          <span>
+            搜索内容：
+            <Input
+              placeholder="请输入"
+              value={interceptSearch}
+              onChange={(e) => setInterceptSearch(e.target.value)}
+              style={{ width: 240, marginLeft: 4 }}
+              allowClear
             />
+          </span>
+        </div>
+
+        <Table
+          rowKey="code"
+          size="small"
+          dataSource={filteredInterceptReasons}
+          pagination={false}
+          rowSelection={{
+            type: 'radio',
+            selectedRowKeys: interceptSelectedCode ? [interceptSelectedCode] : [],
+            onChange: (keys) => {
+              const code = keys[0] as string;
+              const record = MOCK_INTERCEPT_REASONS.find(r => r.code === code);
+              if (record) handleSelectInterceptRow(record);
+              else setInterceptSelectedCode(null);
+            },
+          }}
+          onRow={(record) => ({
+            onClick: () => handleSelectInterceptRow(record),
+          })}
+          columns={[
+            { title: '序号', key: 'idx', width: 60, render: (_: any, __: any, i: number) => i + 1 },
+            { title: '助记码', dataIndex: 'code', key: 'code', width: 100 },
+            { title: '中文名称', dataIndex: 'name', key: 'name', width: 200 },
+            { title: '问题内容', dataIndex: 'content', key: 'content', ellipsis: true },
+          ]}
+        />
+
+        <div style={{ marginTop: 16 }}>
+          <div style={{ fontSize: 13, color: '#333', marginBottom: 6 }}>
+            选择的拦截内容：{selectedInterceptItem ? `${selectedInterceptItem.code} ${selectedInterceptItem.name}：${selectedInterceptItem.content}` : '未选择'}
           </div>
+          <div style={{ fontSize: 13, marginBottom: 4 }}>
+            拦截备注
+          </div>
+          <Input.TextArea
+            rows={4}
+            value={interceptRemark}
+            onChange={(e) => setInterceptRemark(e.target.value)}
+            placeholder="请输入拦截备注"
+          />
         </div>
       </Modal>
     </div>
