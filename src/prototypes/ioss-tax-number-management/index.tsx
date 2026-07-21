@@ -61,7 +61,7 @@ const copyToClipboard = async (text: string): Promise<boolean> => {
 const AUDIT_STATUS_OPTIONS = [
   { value: 'pending', label: '待审核' },
   { value: 'approved', label: '审核通过' },
-  { value: 'rejected', label: '备案不通过' },
+  { value: 'rejected', label: '审核不通过' },
   { value: 'blacklisted', label: '已拉黑' },
 ];
 
@@ -69,6 +69,9 @@ const AUDIT_TYPE_OPTIONS = [
   { value: 'standard', label: '常规审核' },
   { value: 'special', label: '特殊审核' },
 ];
+
+// 状态搜索下拉：去掉「已拉黑」，仅用于列表筛选；展示/导出仍保留该状态
+const AUDIT_STATUS_SEARCH_OPTIONS = AUDIT_STATUS_OPTIONS.filter((o) => o.value !== 'blacklisted');
 
 const CUSTOMER_TYPE_OPTIONS = [
   { value: 'personal', label: '个人' },
@@ -200,7 +203,7 @@ const Component = () => {
     if (selectedRowKeys.length === 0) return message.warning('请先选择记录');
     let remark = '';
     Modal.confirm({
-      title: '批量备案不通过',
+      title: '批量审核不通过',
       content: (
         <div style={{ marginTop: 8 }}>
           <Input.TextArea rows={3} placeholder="请输入不通过原因（可选）" onChange={(e) => (remark = e.target.value)} />
@@ -211,7 +214,7 @@ const Component = () => {
       onOk: () => {
         setDataSource((prev) => prev.map((item) => (selectedRowKeys.includes(item.key) ? { ...item, audit_status: 'rejected', reject_remark: remark } : item)));
         setSelectedRowKeys([]);
-        message.success(`已标记 ${selectedRowKeys.length} 条为备案不通过`);
+        message.success(`已标记 ${selectedRowKeys.length} 条为审核不通过`);
       },
     });
   };
@@ -246,7 +249,7 @@ const Component = () => {
   const renderStatus = useCallback((status: string) => {
     switch (status) {
       case 'approved': return <Tag color="green" bordered={false}>审核通过</Tag>;
-      case 'rejected': return <Tag color="red" bordered={false}>备案不通过</Tag>;
+      case 'rejected': return <Tag color="red" bordered={false}>审核不通过</Tag>;
       case 'pending': return <Tag color="orange" bordered={false}>待审核</Tag>;
       case 'blacklisted': return <Tag color="default" bordered={false}>已拉黑</Tag>;
       default: return <Tag bordered={false}>{status}</Tag>;
@@ -447,7 +450,7 @@ const Component = () => {
           </div>
           <div className="ioss-search-item">
             <span className="ioss-search-label">状态</span>
-            <Select placeholder="全部" allowClear value={searchAuditStatus} onChange={setSearchAuditStatus} options={AUDIT_STATUS_OPTIONS} className="ioss-select" />
+            <Select placeholder="全部" allowClear value={searchAuditStatus} onChange={setSearchAuditStatus} options={AUDIT_STATUS_SEARCH_OPTIONS} className="ioss-select" />
           </div>
           <div className="ioss-search-item">
             <span className="ioss-search-label">创建时间</span>
