@@ -401,19 +401,70 @@ const B2BOrderList = () => {
   const handleInterceptSubmit = useCallback(() => {
     if (!interceptSelectedCode) { message.warning('请先选择一条拦截原因'); return; }
     const selected = MOCK_INTERCEPT_REASONS.find(r => r.code === interceptSelectedCode);
+    // 客户要求暂扣(A1)时，拦截备注必填
+    if (selected?.name === '客户要求暂扣' && !interceptRemark.trim()) {
+      message.warning('拦截原因选择"客户要求暂扣"时，拦截备注为必填项');
+      return;
+    }
     message.success(`已拦截 ${selectedRowKeys.length} 条订单（原因：${selected?.code} ${selected?.name}）`);
     setInterceptModalOpen(false);
     setSelectedRowKeys([]);
   }, [interceptSelectedCode, interceptRemark, selectedRowKeys]);
 
+  // ==================== 导出 ====================
+  const downloadCSV = (filename: string, headers: string[], rows: string[][]) => {
+    const BOM = '\uFEFF';
+    const csv = BOM + headers.join(',') + '\n' + rows.map(r => r.map(c => `"${(c || '').replace(/"/g, '""')}"`).join(',')).join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = filename; a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const handleExportFollowUp = useCallback(() => {
+    const headers = ['YT单号', '跟进人', '跟进备注', '跟进时间'];
+    const rows: string[][] = [];
+    MOCK_DATA.forEach((r) => {
+      const history = followUpHistory[r.ytOrderNo] || [];
+      if (r.follower) {
+        history.filter(h => !h.hidden).forEach(h => rows.push([r.ytOrderNo, r.follower, h.content, h.time]));
+      }
+    });
+    if (rows.length === 0) { message.warning('没有跟进记录可导出'); return; }
+    downloadCSV(`跟进记录导出_${new Date().toISOString().slice(0,10)}.csv`, headers, rows);
+    message.success(`已导出 ${rows.length} 条跟进记录`);
+  }, [followUpHistory]);
+
+  const handleExportDetention = useCallback(() => {
+    const headers = ['YT单号', '扣件原因', '扣件生成时间', '扣件完成时间'];
+    const rows: string[][] = [];
+    MOCK_DATA.forEach((r) => {
+      const reasons = MOCK_DETENTION[r.ytOrderNo];
+      if (reasons?.length) {
+        reasons.forEach(d => rows.push([r.ytOrderNo, d.reason, d.createTime, d.finishTime || '未完成']));
+      }
+    });
+    if (rows.length === 0) { message.warning('没有扣件记录可导出'); return; }
+    downloadCSV(`扣件原因导出_${new Date().toISOString().slice(0,10)}.csv`, headers, rows);
+    message.success(`已导出 ${rows.length} 条扣件记录`);
+  }, []);
+
+  const handleMoreMenu = useCallback(({ key }: { key: string }) => {
+    if (key === 'export-followup') handleExportFollowUp();
+    else if (key === 'export-detention') handleExportDetention();
+    else message.info(`功能 "${key}" 待接入后台（原型演示）`);
+  }, [handleExportFollowUp, handleExportDetention]);
+
   const selectedInterceptItem = MOCK_INTERCEPT_REASONS.find(r => r.code === interceptSelectedCode);
 
   const moreMenuItems = [
-    { key: '1', label: '导出全部' },
-    { key: '2', label: '导出当前页' },
-    { key: '3', label: '打印运单' },
+    { key: 'export-followup', label: '跟进记录导出' },
+    { key: 'export-detention', label: '扣件原因导出' },
     { type: 'divider' as const },
-    { key: '4', label: '列配置' },
+    { key: '1', label: '导出全部' },
+    { key: '2', label: '打印运单' },
+    { key: '3', label: '列配置' },
   ];
 
   return (
@@ -589,7 +640,7 @@ const B2BOrderList = () => {
           <Button danger disabled={selectedRowKeys.length === 0} icon={<DeleteOutlined />}>删除</Button>
           <Button icon={<ReloadOutlined />} onClick={handleRefresh}>刷新</Button>
           <Button icon={<CopyOutlined />}>复制显示列</Button>
-          <Dropdown menu={{ items: moreMenuItems }}>
+          <Dropdown menu={{ items: moreMenuItems, onClick: handleMoreMenu }}>
             <Button>更多 <DownOutlined /></Button>
           </Dropdown>
           <Tooltip title="自定义列展示">
