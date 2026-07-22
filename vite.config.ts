@@ -10,5 +10,7 @@ export default defineConfig({
     port: 5173,
     strictPort: false,
     host: 'localhost',
+    // 关闭 Vite 自带的红色错误浮层，由 admin/src/components/ViteErrorOverlay 提供带「复制错误信息」按钮的版本
+    hmr: { overlay: false },
   },
 });

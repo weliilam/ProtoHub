@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Button, Input, Popconfirm, Space, Spin, Table, message } from 'antd';
+import { Button, Input, Modal, Popconfirm, Space, Spin, Table, message } from 'antd';
 import { DeleteOutlined, PlusOutlined, SaveOutlined } from '@ant-design/icons';
 import { api } from '../api';
 
@@ -40,16 +40,36 @@ export default function DataTableEditor({ name }: { name: string }) {
   };
 
   const addColumn = () => {
-    const colName = window.prompt('新列名：');
-    if (!colName?.trim()) return;
-    const col = colName.trim();
-    if (columns.includes(col)) {
-      message.warning('列已存在');
-      return;
-    }
-    setRows((prev) => {
-      const base = prev.length > 0 ? prev : [{ key: `row-${Date.now()}` }];
-      return base.map((r) => ({ ...r, [col]: '' }));
+    let colName = '';
+    Modal.confirm({
+      title: '添加新列',
+      content: (
+        <Input
+          placeholder="输入列名"
+          onChange={(e) => (colName = e.target.value)}
+          style={{ marginTop: 8 }}
+          onPressEnter={() => {
+            // 回车即确认
+          }}
+        />
+      ),
+      okText: '添加',
+      cancelText: '取消',
+      onOk: () => {
+        const col = colName.trim();
+        if (!col) {
+          message.warning('请输入列名');
+          return Promise.reject();
+        }
+        if (columns.includes(col)) {
+          message.warning('列已存在');
+          return Promise.reject();
+        }
+        setRows((prev) => {
+          const base = prev.length > 0 ? prev : [{ key: `row-${Date.now()}` }];
+          return base.map((r) => ({ ...r, [col]: '' }));
+        });
+      },
     });
   };
 

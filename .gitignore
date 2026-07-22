@@ -5,3 +5,8 @@ dist
 annotations.json
 vite.log
 vite.err.log
+# 版本对比临时目录
+src/prototypes/__cmp_*/
+# 原型与文档（不纳入框架仓库，仅本地保留）
+src/prototypes/
+src/docs/

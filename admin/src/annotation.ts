@@ -16,6 +16,7 @@ const INJECTED_CSS = `
     text-align: center; cursor: pointer; box-shadow: 0 1px 4px rgba(0,0,0,.35); user-select: none;
   }
   .ph-anno-marker.ph-anno-done { background: #52c41a; }
+  .ph-anno-marker.ph-anno-merged { box-shadow: 0 0 0 2px #fff, 0 1px 6px rgba(0,0,0,.45); font-weight: 700; }
 `;
 
 function ensureStyle(doc: Document) {
@@ -52,73 +53,144 @@ export function computeSelector(el: Element): string {
   return parts.join(' > ');
 }
 
+const OVERLAY_ID = 'ph-anno-overlay';
+
+/** 创建/复用覆盖层：拦截鼠标事件，使禁用元素也能被命中测试选中 */
+function ensureOverlay(doc: Document): HTMLElement {
+  let ov = doc.getElementById(OVERLAY_ID) as HTMLElement | null;
+  if (!ov) {
+    ov = doc.createElement('div');
+    ov.id = OVERLAY_ID;
+    // 置于所有原型内容之上、批注标记之下（marker z-index 2147483000）
+    ov.style.cssText =
+      'position:fixed;inset:0;z-index:2147482999;cursor:crosshair;background:transparent;';
+    doc.body.appendChild(ov);
+  }
+  return ov;
+}
+
 /**
  * 开启取元素模式：hover 高亮，点击后回调元素信息。
  * 返回清理函数。
+ *
+ * 关键点：禁用（disabled）的按钮/输入不会向自身调度任何鼠标事件，
+ * 因此无法靠 element 上的 click/mousedown 捕获。这里改为在 iframe 内铺一层
+ * 透明的 enabled 覆盖层来拦截事件，处理时临时隐藏覆盖层、用 elementFromPoint
+ * 取下方的真实元素（含 disabled）。
  */
 export function enablePicking(doc: Document, onPick: (picked: PickedElement) => void): () => void {
   ensureStyle(doc);
+  const overlay = ensureOverlay(doc);
   let hovered: Element | null = null;
 
-  const onMouseOver = (e: MouseEvent) => {
-    const target = e.target as Element;
-    if (target.classList?.contains('ph-anno-marker')) return;
-    hovered?.classList.remove('ph-anno-hover');
-    hovered = target;
-    hovered.classList.add('ph-anno-hover');
+  // 临时隐藏覆盖层后做命中测试，取真实元素（即使它是 disabled）
+  const pickAt = (x: number, y: number): Element | null => {
+    overlay.style.pointerEvents = 'none';
+    const el = doc.elementFromPoint(x, y) as Element | null;
+    overlay.style.pointerEvents = 'auto';
+    if (el && !el.classList.contains('ph-anno-marker')) return el;
+    return null;
   };
 
-  const onClick = (e: MouseEvent) => {
-    const target = e.target as Element;
-    if (target.classList?.contains('ph-anno-marker')) return;
+  const onMouseMove = (e: MouseEvent) => {
+    const el = pickAt(e.clientX, e.clientY);
+    if (el === hovered) return;
+    hovered?.classList.remove('ph-anno-hover');
+    hovered = el;
+    hovered?.classList.add('ph-anno-hover');
+  };
+
+  const onMouseDown = (e: MouseEvent) => {
+    if (e.button !== 0) return; // 仅处理左键
+    const el = pickAt(e.clientX, e.clientY);
+    if (!el) return;
     e.preventDefault();
     e.stopPropagation();
-    const rect = target.getBoundingClientRect();
+    const rect = el.getBoundingClientRect();
     const win = doc.defaultView!;
     onPick({
-      selector: computeSelector(target),
+      selector: computeSelector(el),
       x: Math.round(rect.left + win.scrollX),
       y: Math.round(rect.top + win.scrollY),
     });
   };
 
-  doc.addEventListener('mouseover', onMouseOver, true);
-  doc.addEventListener('click', onClick, true);
+  // 覆盖层拦截滚轮，手动转发给下方真实的可滚动容器，保留原型滚动能力
+  const onWheel = (e: WheelEvent) => {
+    const el = pickAt(e.clientX, e.clientY);
+    let sc: HTMLElement | null = el as HTMLElement | null;
+    while (sc && sc.scrollHeight <= sc.clientHeight) sc = sc.parentElement;
+    if (sc) {
+      e.preventDefault();
+      sc.scrollTop += e.deltaY;
+    }
+  };
+
+  overlay.addEventListener('mousemove', onMouseMove);
+  overlay.addEventListener('mousedown', onMouseDown);
+  overlay.addEventListener('wheel', onWheel, { passive: false });
 
   return () => {
-    doc.removeEventListener('mouseover', onMouseOver, true);
-    doc.removeEventListener('click', onClick, true);
+    overlay.removeEventListener('mousemove', onMouseMove);
+    overlay.removeEventListener('mousedown', onMouseDown);
+    overlay.removeEventListener('wheel', onWheel);
     hovered?.classList.remove('ph-anno-hover');
+    overlay.remove();
   };
 }
 
-/** 在 iframe 文档中渲染批注标记点，返回清理函数 */
-export function renderMarkers(doc: Document, annotations: Annotation[], onMarkerClick: (a: Annotation) => void): () => void {
+/** 渲染批注标记点，返回清理函数 + 找不到对应元素的"失效"批注 */
+export function renderMarkers(
+  doc: Document,
+  annotations: Annotation[],
+  onMarkerClick: (a: Annotation) => void,
+): { cleanup: () => void; orphan: Annotation[] } {
   ensureStyle(doc);
   clearMarkers(doc);
   const created: Element[] = [];
+  const orphan: Annotation[] = [];
 
-  annotations.forEach((a, idx) => {
-    if (!a.selector) return;
-    const el = doc.querySelector(a.selector);
-    if (!el) return;
+  // 同一元素上的多条批注合并成一个标记，避免重叠
+  const indexById = new Map<string, number>();
+  annotations.forEach((a, i) => indexById.set(a.id, i + 1));
+
+  const groups = new Map<string, Annotation[]>();
+  // 只展示「待处理」批注的标记，已完成的「绿圆圈」不渲染
+  annotations
+    .filter((a) => a.status === 'open')
+    .forEach((a) => {
+      if (!a.selector) return;
+      if (!groups.has(a.selector)) groups.set(a.selector, []);
+      groups.get(a.selector)!.push(a);
+    });
+
+  groups.forEach((group) => {
+    const selector = group[0].selector;
+    const el = doc.querySelector(selector);
+    if (!el) {
+      // 元素已被 AI 改动删除/结构变化，批注不再静默消失，标记为失效
+      orphan.push(...group);
+      return;
+    }
     const rect = el.getBoundingClientRect();
     const win = doc.defaultView!;
+    const merged = group.length > 1;
     const marker = doc.createElement('div');
-    marker.className = `ph-anno-marker${a.status === 'done' ? ' ph-anno-done' : ''}`;
-    marker.textContent = String(idx + 1);
+    marker.className = `ph-anno-marker${merged ? ' ph-anno-merged' : ''}`;
+    marker.textContent = merged ? String(group.length) : String(indexById.get(group[0].id));
     marker.style.left = `${rect.left + win.scrollX - 8}px`;
     marker.style.top = `${rect.top + win.scrollY - 8}px`;
-    marker.title = a.text;
+    const titleLines = group.map((a) => `• [待处理] ${a.text}`);
+    marker.title = (merged ? `该元素有 ${group.length} 条批注：\n` : '') + titleLines.join('\n');
     marker.addEventListener('click', (e) => {
       e.stopPropagation();
-      onMarkerClick(a);
+      onMarkerClick(group[0]);
     });
     doc.body.appendChild(marker);
     created.push(marker);
   });
 
-  return () => created.forEach((m) => m.remove());
+  return { cleanup: () => created.forEach((m) => m.remove()), orphan };
 }
 
 export function clearMarkers(doc: Document) {

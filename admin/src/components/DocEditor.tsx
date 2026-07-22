@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Button, Space, Spin, message } from 'antd';
 import { SaveOutlined } from '@ant-design/icons';
 import { marked } from 'marked';
@@ -20,7 +20,7 @@ export default function DocEditor({ name }: { name: string }) {
 
   const html = useMemo(() => ({ __html: marked.parse(content) as string }), [content]);
 
-  const save = async () => {
+  const save = useCallback(async () => {
     setSaving(true);
     try {
       await api.saveDoc(name, content);
@@ -30,7 +30,19 @@ export default function DocEditor({ name }: { name: string }) {
     } finally {
       setSaving(false);
     }
-  };
+  }, [name, content]);
+
+  // Ctrl/Cmd+S 快捷保存
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') {
+        e.preventDefault();
+        save();
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [save]);
 
   if (loading) return <Spin style={{ margin: '80px auto' }} />;
 

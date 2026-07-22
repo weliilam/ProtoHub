@@ -1,4 +1,5 @@
 import type { Plugin } from 'vite';
+import fs from 'fs';
 import path from 'path';
 import { randomUUID } from 'crypto';
 import { projectRoot, sendJson, sendError, readJsonBody, getPathname, getQuery, readJsonFile, writeJsonFile } from './utils';
@@ -10,13 +11,32 @@ export interface Annotation {
   x: number; // 相对元素的位置信息（用于回显标记）
   y: number;
   text: string;
-  status: 'open' | 'done';
+  status: 'open' | 'done' | 'resolved';
   createdAt: string;
 }
 
 type Store = Record<string, Annotation[]>;
 
+const STATUS_VALUES = ['open', 'done', 'resolved'] as const;
+/** 状态白名单：仅允许已知值，非法值归为 'open'，避免脏数据污染 */
+function normalizeStatus(s: unknown): 'open' | 'done' | 'resolved' {
+  return (STATUS_VALUES as readonly string[]).includes(s as string)
+    ? (s as 'open' | 'done' | 'resolved')
+    : 'open';
+}
+
 const storePath = () => path.join(projectRoot, 'annotations.json');
+const backupPath = () => path.join(projectRoot, 'annotations.json.bak');
+
+/** 安全写入：先备份旧文件，再原子替换，避免写入中断导致数据丢失 */
+function writeStore(file: string, store: Store) {
+  try {
+    if (fs.existsSync(file)) fs.copyFileSync(file, backupPath());
+  } catch {
+    /* 备份失败不阻断主流程 */
+  }
+  writeJsonFile(file, store);
+}
 
 export function annotationApiPlugin(): Plugin {
   return {
@@ -43,17 +63,17 @@ export function annotationApiPlugin(): Plugin {
             const body = await readJsonBody<Partial<Annotation>>(req);
             if (!body.target || !body.text?.trim()) return sendError(res, 'target 和 text 必填');
             const annotation: Annotation = {
-              id: randomUUID().slice(0, 8),
+              id: body.id || randomUUID().slice(0, 8),
               target: body.target,
               selector: body.selector || '',
               x: Number(body.x) || 0,
               y: Number(body.y) || 0,
               text: body.text.trim(),
-              status: 'open',
-              createdAt: new Date().toISOString(),
+              status: body.status || 'open',
+              createdAt: body.createdAt || new Date().toISOString(),
             };
             store[annotation.target] = [...(store[annotation.target] || []), annotation];
-            writeJsonFile(storePath(), store);
+            writeStore(storePath(), store);
             return sendJson(res, { success: true, data: annotation });
           }
 
@@ -64,7 +84,8 @@ export function annotationApiPlugin(): Plugin {
               const idx = store[target].findIndex((a) => a.id === id);
               if (idx >= 0) {
                 store[target][idx] = { ...store[target][idx], ...body, id };
-                writeJsonFile(storePath(), store);
+                if (body.status) store[target][idx].status = normalizeStatus(body.status);
+                writeStore(storePath(), store);
                 return sendJson(res, { success: true, data: store[target][idx] });
               }
             }
@@ -77,7 +98,7 @@ export function annotationApiPlugin(): Plugin {
               const before = store[target].length;
               store[target] = store[target].filter((a) => a.id !== id);
               if (store[target].length !== before) {
-                writeJsonFile(storePath(), store);
+                writeStore(storePath(), store);
                 return sendJson(res, { success: true });
               }
             }

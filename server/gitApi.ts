@@ -71,7 +71,10 @@ export function gitApiPlugin(): Plugin {
             // 1. 清空暂存区（不动工作区文件），确保本次提交只包含目标路径
             try { await git(['reset', '-q']); } catch { /* 空仓库时忽略 */ }
             // 2. 暂存目标路径（含新增/修改/删除）
-            await git(['add', '-A', '--', scope || '.']);
+            // 若 scope 指向被 .gitignore 忽略的条目（原型/文档），用 -f 强制纳入快照；
+            // 全仓库快照（scope 为空）不加 -f，避免把 node_modules 等忽略项强制纳入
+            const addArgs = scope ? ['add', '-A', '-f', '--', scope] : ['add', '-A', '--', '.'];
+            await git(addArgs);
             // 3. 检查暂存区是否有内容
             const staged = await git(['diff', '--cached', '--name-only']);
             if (!staged) {
@@ -95,6 +98,32 @@ export function gitApiPlugin(): Plugin {
             const scope = resolveScope(body.scope ?? null);
             await git(['checkout', body.hash, '--', scope || '.']);
             return sendJson(res, { success: true });
+          }
+
+          // 当前工作区相对 HEAD 的代码改动（可按 scope 过滤），用于发布后展示给产品同学确认
+          if (pathname === '/api/git/diff' && req.method === 'GET') {
+            const scope = resolveScope(getQuery(req).get('scope'));
+            try {
+              const diff = await git(['--no-pager', 'diff', 'HEAD', '--', scope || '.']);
+              return sendJson(res, { success: true, data: { diff } });
+            } catch {
+              return sendJson(res, { success: true, data: { diff: '' } });
+            }
+          }
+
+          // 单次提交相对其父提交的改动（git show），用于在 GitPanel 查看"这次改了什么"
+          if (pathname === '/api/git/show' && req.method === 'GET') {
+            const hash = getQuery(req).get('hash');
+            if (!hash || !/^[0-9a-f]{6,40}$/i.test(hash)) return sendError(res, '快照标识不合法');
+            const scope = resolveScope(getQuery(req).get('scope'));
+            try {
+              const args = ['--no-pager', 'show', '--format=medium', hash];
+              if (scope) args.push('--', scope);
+              const diff = await git(args);
+              return sendJson(res, { success: true, data: { diff } });
+            } catch (e: any) {
+              return sendError(res, `读取提交内容失败：${e.stderr || e.message}`, 500);
+            }
           }
 
           next();

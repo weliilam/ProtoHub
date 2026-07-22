@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Button, Empty, Input, Select, Space, Spin, Tag, message } from 'antd';
-import { RobotOutlined, SendOutlined } from '@ant-design/icons';
+import { CopyOutlined, RobotOutlined, SendOutlined } from '@ant-design/icons';
 import { api } from '../api';
 import type { CliStatus, EntryItem } from '../types';
 
@@ -66,36 +66,72 @@ export default function AiCliPanel({ selected }: { selected: EntryItem | null })
         <span>
           <RobotOutlined /> AI CLI
         </span>
-        <Space size={4}>
-          {Object.entries(status).map(([key, v]) => (
-            <Tag key={key} color={v.available ? 'green' : 'default'} style={{ marginInlineEnd: 0 }}>
-              {key}
-            </Tag>
-          ))}
-        </Space>
       </div>
       <div className="ph-right-panel-body">
         {options.length === 0 ? (
           <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="检测中..." />
         ) : (
           <Space direction="vertical" style={{ width: '100%' }} size="middle">
-            <Select style={{ width: '100%' }} value={cli || undefined} options={options} onChange={setCli} placeholder="选择 AI CLI" />
+            {/* CLI 状态指示：仅作状态显示，非按钮 */}
+            <div className="ph-cli-status">
+              <span style={{ fontSize: 12, color: '#888' }}>已检测：</span>
+              <Space size={4} wrap>
+                {Object.entries(status).map(([key, v]) => (
+                  <Tag
+                    key={key}
+                    color={v.available ? 'success' : 'default'}
+                    style={{ marginInlineEnd: 0, fontSize: 11, padding: '0 6px', lineHeight: '18px' }}
+                  >
+                    {v.available ? '●' : '○'} {key}
+                  </Tag>
+                ))}
+              </Space>
+            </div>
+            <Select
+              style={{ width: '100%' }}
+              value={cli || undefined}
+              options={options}
+              onChange={setCli}
+              placeholder="选择 AI CLI"
+            />
             <Input.TextArea
               rows={6}
               placeholder="输入给 AI 的指令，例如：给当前原型增加一个导出按钮"
               value={prompt}
               onChange={(e) => setPrompt(e.target.value)}
             />
-            <Space>
-              <Button type="primary" icon={<SendOutlined />} loading={running} onClick={run}>
-                执行
-              </Button>
+            <div className="ph-action-bar">
               <Button size="small" disabled={!selected} onClick={insertContext}>
                 插入当前条目路径
               </Button>
-            </Space>
+              <div className="ph-action-bar-right">
+                <Button size="small" type="primary" icon={<SendOutlined />} loading={running} onClick={run}>
+                  执行
+                </Button>
+              </div>
+            </div>
             {running && <Spin tip="AI 执行中（最长 180s）..." />}
-            {output && <pre className="ph-ai-output">{output}</pre>}
+            {output && (
+              <div style={{ position: 'relative' }}>
+                <Button
+                  size="small"
+                  type="text"
+                  icon={<CopyOutlined />}
+                  style={{ position: 'absolute', top: 4, right: 4, zIndex: 2 }}
+                  onClick={async () => {
+                    try {
+                      await navigator.clipboard.writeText(output);
+                      message.success('已复制输出内容');
+                    } catch {
+                      message.error('复制失败，请手动复制');
+                    }
+                  }}
+                >
+                  复制
+                </Button>
+                <pre className="ph-ai-output">{output}</pre>
+              </div>
+            )}
           </Space>
         )}
       </div>

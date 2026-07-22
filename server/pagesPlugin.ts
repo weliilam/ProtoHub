@@ -4,8 +4,9 @@ import path from 'path';
 import { projectRoot, sendError, getPathname } from './utils';
 
 function resolveEntry(pathname: string): { name: string; entry: string } | null {
+  const decoded = decodeURIComponent(pathname);
   // /p/demo-dashboard → src/prototypes/demo-dashboard/index.tsx
-  const protoMatch = pathname.match(/^\/p\/([\w一-龥-]+)\/?$/);
+  const protoMatch = decoded.match(/^\/p\/([\w一-龥-]+)\/?$/);
   if (protoMatch) {
     const name = protoMatch[1];
     const entry = path.join(projectRoot, 'src/prototypes', name, 'index.tsx');
@@ -13,7 +14,7 @@ function resolveEntry(pathname: string): { name: string; entry: string } | null 
     return null;
   }
   // /p/components/demo-button → src/components/demo-button/index.tsx
-  const compMatch = pathname.match(/^\/p\/components\/([\w一-龥-]+)\/?$/);
+  const compMatch = decoded.match(/^\/p\/components\/([\w一-龥-]+)\/?$/);
   if (compMatch) {
     const name = compMatch[1];
     const entry = path.join(projectRoot, 'src/components', name, 'index.tsx');
