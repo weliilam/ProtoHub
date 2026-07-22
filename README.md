@@ -37,6 +37,17 @@
 - 包管理器：pnpm
 - Git（用于快照功能）
 
+### 获取项目（从 Git 克隆）
+
+本工作台已发布到 GitHub，可直接克隆到本地使用：
+
+```bash
+git clone https://github.com/weliilam/ProtoHub.git
+cd ProtoHub
+```
+
+> **说明**：仓库仅包含 Proto Hub 框架代码，原型（prototype）与文档（doc）已在版本控制中排除，克隆后需自行在工作台内新建原型 / 文档。
+
 ### 安装与启动
 
 ```bash
