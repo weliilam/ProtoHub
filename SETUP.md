@@ -41,12 +41,42 @@ pnpm dev
 
 ---
 
+## 可选扩展
+
+基础搭建完成后，以下功能需额外安装（不影响核心的原型预览、批注、Git 快照）。请询问用户是否需要配置：
+
+### 飞书 PRD 同步（可选）
+
+如需在工作台内同步飞书文档的标题和内容：
+
+```bash
+npm install -g lark-cli
+lark-cli auth login
+lark-cli auth status   # 验证登录状态
+```
+
+### AI CLI 代码生成（可选）
+
+如需在界面内调用 AI 直接生成或修改原型代码，安装以下任一 CLI（安装后刷新工作台即可识别）：
+
+| CLI | 安装命令 |
+|-----|---------|
+| **CodeBuddy**（推荐） | `npm install -g @tencent/codebuddy` |
+| Claude Code | `npm install -g @anthropic-ai/claude-code` |
+| Cursor Agent | 通过 Cursor IDE 内置，无需额外安装 |
+| Gemini CLI | `npm install -g @google/generative-ai` |
+| OpenAI Codex | `npm install -g @openai/codex` |
+| OpenCode | `npm install -g opencode` |
+
+---
+
 ## 完成后
 
 服务启动成功后：
 1. 在浏览器打开终端输出的地址
 2. 告知用户：「Proto Hub 已启动，访问地址为 xxx」
 3. 提醒用户：仓库仅含框架代码，原型和文档请在左侧边栏点击「新建」自行创建
+4. 如用户需要飞书或 AI 功能，按上方「可选扩展」指引安装
 
 ---
 
