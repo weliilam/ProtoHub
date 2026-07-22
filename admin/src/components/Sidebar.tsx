@@ -710,7 +710,7 @@ export default function Sidebar(props: SidebarProps) {
           <GroupPanel
             key={g.id}
             group={g}
-            items={grouped[g.id]}
+            items={grouped[g.id] || []}
             selected={selected}
             onSelect={props.onSelect}
             onRename={props.onRename}

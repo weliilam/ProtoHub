@@ -10,3 +10,7 @@ src/prototypes/__cmp_*/
 # 原型与文档（不纳入框架仓库，仅本地保留）
 src/prototypes/
 src/docs/
+# 本地运行/数据产物
+dev.stdout.log
+dev.stderr.log
+annotations.json.bak

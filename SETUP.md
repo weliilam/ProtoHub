@@ -41,27 +41,36 @@ pnpm dev
 
 ---
 
-## 可选扩展
+## 扩展配置（必装）
 
-基础搭建完成后，以下功能需额外安装（不影响核心的原型预览、批注、Git 快照）。请询问用户是否需要配置：
+基础搭建完成后，以下功能为工作台推荐的必装扩展（飞书 PRD 同步、界面内 AI 代码生成）。请按下方步骤逐项正确配置，不要跳过：
 
-### 飞书 PRD 同步（可选）
+### 飞书 PRD 同步
 
-如需在工作台内同步飞书文档的标题和内容：
+先检查本机是否已安装 `lark-cli`，未安装则安装并授权：
 
 ```bash
-npm install -g lark-cli
-lark-cli auth login
-lark-cli auth status   # 验证登录状态
+lark-cli --version           # 检查是否已安装；命令不存在则需要安装
+npm install -g lark-cli      # 未安装时执行
+lark-cli auth login          # 安装后登录授权（浏览器扫码 / 账号登录）
+lark-cli auth status         # 验证登录状态，确认 user / bot 身份 available
 ```
 
-### AI CLI 代码生成（可选）
+> 若 `lark-cli --version` 已能正常输出版本号，说明依赖已存在，跳过安装步骤，直接执行 `lark-cli auth login` 完成配置即可；无需重复安装。
 
-如需在界面内调用 AI 直接生成或修改原型代码，安装以下任一 CLI（安装后刷新工作台即可识别）：
+### AI CLI 代码生成
+
+默认安装 **CodeBuddy**（推荐）：安装完成后刷新工作台即自动识别，并沿用当前 CodeBuddy 会话登录态，无需单独登录。
+
+```bash
+npm install -g @tencent/codebuddy
+```
+
+如需切换其他 AI CLI，可安装以下任一（安装后刷新工作台即可识别）：
 
 | CLI | 安装命令 |
 |-----|---------|
-| **CodeBuddy**（推荐） | `npm install -g @tencent/codebuddy` |
+| **CodeBuddy**（默认） | `npm install -g @tencent/codebuddy` |
 | Claude Code | `npm install -g @anthropic-ai/claude-code` |
 | Cursor Agent | 通过 Cursor IDE 内置，无需额外安装 |
 | Gemini CLI | `npm install -g @google/generative-ai` |
@@ -76,7 +85,7 @@ lark-cli auth status   # 验证登录状态
 1. 在浏览器打开终端输出的地址
 2. 告知用户：「Proto Hub 已启动，访问地址为 xxx」
 3. 提醒用户：仓库仅含框架代码，原型和文档请在左侧边栏点击「新建」自行创建
-4. 如用户需要飞书或 AI 功能，按上方「可选扩展」指引安装
+4. 按上方「扩展配置（必装）」完成飞书 PRD 同步与 AI CLI（CodeBuddy）的安装与登录配置
 
 ---
 

@@ -53,6 +53,24 @@
   font-size: 13px;
   color: rgba(0, 0, 0, 0.85);
   white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.ioss-codetype-select {
+  width: 96px;
+}
+
+.ioss-codetype-select .ant-select-selector {
+  border: none !important;
+  background: transparent;
+}
+
+.ioss-empty {
+  padding: 60px;
+  text-align: center;
+  color: #999;
 }
 
 .ioss-input {
