@@ -144,7 +144,6 @@ const SELECTABLE_COLS = [
   { key: 'audit_type', title: '审核类型', width: 120, getValue: (r: any) => AUDIT_TYPE_MAP[r.audit_type as 'C' | 'R'] || '-' },
   { key: 'status', title: '状态', width: 100, getValue: (r: any) => STATUS_MAP[r.status]?.label || r.status },
   { key: 'remark', title: '审核不通过原因', width: 200, getValue: (r: any) => r.remark || '-' },
-  { key: 'file_url', title: '注册文件', width: 220, getValue: (r: any) => r.file_url || '-' },
   { key: 'create_time', title: '创建时间', width: 180, getValue: (r: any) => r.create_time || '-' },
   { key: 'salesman', title: '业务员', width: 100, getValue: (r: any) => r.salesman || '-' },
   { key: 'audit_name', title: '审核人', width: 100, getValue: (r: any) => r.audit_name || '-' },
