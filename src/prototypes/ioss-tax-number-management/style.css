@@ -56,6 +56,8 @@
   display: inline-flex;
   align-items: center;
   gap: 6px;
+  /* 统一标签高度，让含 Select 的搜索项与其它纯文本标签项输入框垂直对齐 */
+  min-height: 24px;
 }
 
 .ioss-codetype-select {
