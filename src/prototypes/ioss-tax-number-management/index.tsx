@@ -143,7 +143,7 @@ const SELECTABLE_COLS = [
   { key: 'ioss_cipher', title: 'IOSS密文', width: 180, getValue: (r: any) => maskIoss(r.ioss_code) },
   { key: 'audit_type', title: '审核类型', width: 120, getValue: (r: any) => AUDIT_TYPE_MAP[r.audit_type as 'C' | 'R'] || '-' },
   { key: 'status', title: '状态', width: 100, getValue: (r: any) => STATUS_MAP[r.status]?.label || r.status },
-  { key: 'remark', title: '审核不通过原因', width: 200, getValue: (r: any) => r.remark || '-' },
+  { key: 'remark', title: '审核不通过备注', width: 200, getValue: (r: any) => r.remark || '-' },
   { key: 'create_time', title: '创建时间', width: 180, getValue: (r: any) => r.create_time || '-' },
   { key: 'salesman', title: '业务员', width: 100, getValue: (r: any) => r.salesman || '-' },
   { key: 'audit_name', title: '审核人', width: 100, getValue: (r: any) => r.audit_name || '-' },
@@ -267,7 +267,7 @@ const Component = () => {
       title: '批量审核不通过',
       content: (
         <div style={{ marginTop: 8 }}>
-          <Input.TextArea rows={3} placeholder="请输入不通过原因（可选）" onChange={(e) => (remark = e.target.value)} />
+          <Input.TextArea rows={3} placeholder="请输入不通过备注（可选）" onChange={(e) => (remark = e.target.value)} />
         </div>
       ),
       okText: '确定',
