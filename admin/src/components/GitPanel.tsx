@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Alert, Button, Checkbox, Collapse, Empty, Input, List, Popconfirm, Space, Tag, Typography, message } from 'antd';
+import { Alert, Button, Checkbox, Empty, Input, List, Popconfirm, Space, Tag, message } from 'antd';
 import {
   CameraOutlined,
   ColumnWidthOutlined,
@@ -13,18 +13,31 @@ import { api } from '../api';
 import { CompareView } from './CompareView';
 import type { CliStatus, EntryItem, GitLogItem } from '../types';
 
-const DIFF_STYLE: React.CSSProperties = {
-  whiteSpace: 'pre-wrap',
-  maxHeight: 240,
-  overflow: 'auto',
-  background: '#0d1117',
-  color: '#c9d1d9',
-  padding: 10,
-  borderRadius: 6,
-  fontSize: 12,
-  margin: '8px 0 0',
-  fontFamily: 'monospace',
-};
+/** 去掉 AI 输出中残留的 markdown 标记（## / ** / * / `），保持纯文本可读 */
+function stripMarkdown(text: string): string {
+  return text
+    .replace(/^#{1,4}\s+/gm, '')    // 去掉 ## / ### 等标题标记
+    .replace(/\*\*(.+?)\*\*/g, '$1') // **bold** → bold
+    .replace(/\*(.+?)\*/g, '$1')     // *italic* → italic
+    .replace(/`(.+?)`/g, '$1')       // `code` → code
+    .replace(/^\s*[-*+]\s+/gm, '· ') // 无序列表项
+    .replace(/^\s*\d+[.)]\s+/gm, '') // 有序列表序号
+    .trim();
+}
+
+/** 将 AI 输出按行渲染为列表 */
+function renderAiSummary(text: string): React.ReactNode {
+  const clean = stripMarkdown(text);
+  return clean.split('\n').map((line, i) => {
+    const trimmed = line.trim();
+    if (!trimmed) return <br key={i} />;
+    return (
+      <div key={i} style={{ fontSize: 13, color: '#374151', lineHeight: 1.8 }}>
+        {trimmed}
+      </div>
+    );
+  });
+}
 
 /** 计算条目对应的仓库内路径（快照粒度） */
 export function scopeOf(item: EntryItem | null): string | null {
@@ -121,14 +134,34 @@ export default function GitPanel({ selected, onRestored }: Props) {
   const [loading, setLoading] = useState(false);
   // 展开查看 diff 的快照：hash -> { diff } 或加载中
   const [expanded, setExpanded] = useState<Record<string, { diff: string } | 'loading'>>({});
-  // 按快照 hash 缓存 AI 生成的产品语言解读（大白话改动说明）
-  const [aiSummaries, setAiSummaries] = useState<Record<string, string>>({});
+  const LS_KEY_AI = 'proto-hub-ai-summaries';
 
-  // 用大白话解读本次改动（给产品 / 业务同学看）：调用 AI 把代码 diff 翻译成非技术说明
+  // 读取 localStorage 中持久化的 AI 解读
+  function loadAiSummaries(): Record<string, string> {
+    try {
+      const raw = localStorage.getItem(LS_KEY_AI);
+      return raw ? JSON.parse(raw) : {};
+    } catch { return {}; }
+  }
+
+  function saveAiSummaries(updates: Record<string, string>) {
+    try {
+      const all = loadAiSummaries();
+      Object.assign(all, updates);
+      localStorage.setItem(LS_KEY_AI, JSON.stringify(all));
+    } catch { /* 忽略 */ }
+  }
+
+  // 按快照 hash 缓存 AI 生成的产品语言解读（大白话改动说明），刷新不丢失
+  const [aiSummaries, setAiSummaries] = useState<Record<string, string>>(loadAiSummaries);
+
+  // 大白话解读：调用 AI 把代码 diff 翻译成非技术说明
   const explainWithAi = async (hash: string) => {
     const diffObj = expanded[hash];
     if (!diffObj || diffObj === 'loading') return;
-    setAiSummaries((prev) => ({ ...prev, [hash]: 'loading' }));
+    const newVal: Record<string, string> = { ...aiSummaries, [hash]: 'loading' };
+    setAiSummaries(newVal);
+    saveAiSummaries(newVal);
     try {
       const status = (await api.aiStatus()) as Record<string, CliStatus>;
       const available = Object.entries(status)
@@ -136,29 +169,43 @@ export default function GitPanel({ selected, onRestored }: Props) {
         .map(([k]) => k);
       const cli = available.includes('codebuddy') ? 'codebuddy' : available[0];
       if (!cli) {
-        setAiSummaries((prev) => ({
-          ...prev,
-          [hash]:
-            '未检测到可用的 AI CLI（CodeBuddy / Claude 等），无法生成产品解读。可参考下方文件改动概览。',
-        }));
+        const fallback = {
+          ...aiSummaries,
+          [hash]: '未检测到可用的 AI CLI（CodeBuddy / Claude 等），无法生成解读。',
+        };
+        setAiSummaries(fallback);
+        saveAiSummaries(fallback);
         return;
       }
-      const prompt = `你是面向产品 / 业务同学的需求助手。下面是一段代码的 git 改动（diff），请用大白话说明：
-1）这次改动了哪些页面或功能模块；
-2）对用户（使用者）有什么影响、能看到哪些变化；
-3）若改动很小也请直接说清改了什么。
-严禁出现任何代码、文件路径、技术术语、函数名、变量名。
+      const prompt = `你是一个简洁的需求说明助手。根据下面的代码改动（diff），用大白话（一行一条）写出具体改了什么。
+
+必须用界面元素的名称来描述，例如：某某列、某某按钮、某某搜索框、某某下拉框、某某弹窗、某某Tab、某某筛选器、某某输入框。
+
+输出示例（模仿这种风格）：
+调整了IOSS识别码搜索框的高度，同其他搜索框对齐
+新增了审核状态列
+新增了客户名称搜索项
+删除了旧的批量导出按钮
+
+要求：
+- 一行一条改动，用“调整了xx”、“新增了xx”、“删除了xx”、“修改了xx”开头
+- 必须说清具体是哪个界面元素（列/按钮/搜索框/下拉框/弹窗/Tab/筛选器等）
+- 严禁出现：组件名、CSS类名、函数名、变量名、文件路径、API地址、import/export
+- 整体不超过 6 行，小改动1行即可
+- 不要用 markdown 格式
 
 改动内容：
 ${diffObj.diff.slice(0, 8000)}`;
       const { output, timedOut } = await api.aiExecute(cli, prompt, () => {});
       const text = output.trim() || '（AI 未返回说明）';
-      setAiSummaries((prev) => ({
-        ...prev,
-        [hash]: timedOut ? `${text}\n\n[提示：AI 执行超时，说明可能不完整，可重新点击按钮解读]` : text,
-      }));
+      const finalText = timedOut ? `${text}\n\n[提示：AI 执行超时，说明可能不完整]` : text;
+      const finalVal = { ...aiSummaries, [hash]: finalText };
+      setAiSummaries(finalVal);
+      saveAiSummaries(finalVal);
     } catch (e: any) {
-      setAiSummaries((prev) => ({ ...prev, [hash]: `解读失败：${e.message}` }));
+      const errVal = { ...aiSummaries, [hash]: `解读失败：${e.message}` };
+      setAiSummaries(errVal);
+      saveAiSummaries(errVal);
     }
   };
 
@@ -382,91 +429,44 @@ ${diffObj.diff.slice(0, 8000)}`;
                           diffObj === 'loading' ? (
                             <div style={{ color: '#888', fontSize: 12, marginTop: 8 }}>加载中…</div>
                           ) : (
-                            <div style={{ marginTop: 8, marginLeft: 28 }}>
-                              {/* AI 产品语言解读（给产品看，最醒目） */}
+                            <div style={{ marginTop: 10, marginLeft: 28 }}>
+                              {/* AI 改动解读（紧凑样式） */}
                               <div
                                 style={{
-                                  marginBottom: 10,
                                   padding: '10px 12px',
-                                  background: '#e6f4ff',
-                                  border: '1px solid #91caff',
-                                  borderRadius: 8,
+                                  background: '#f5f8ff',
+                                  borderLeft: '3px solid #0958d9',
+                                  borderRadius: 4,
                                 }}
                               >
-                                <div style={{ fontWeight: 600, marginBottom: 6, color: '#0958d9', fontSize: 13 }}>
-                                  📋 本次改动说明（给产品 / 业务同学）
-                                </div>
                                 {aiSummaries[item.hash] ? (
                                   aiSummaries[item.hash] === 'loading' ? (
                                     <span style={{ fontSize: 12, color: '#1677ff' }}>AI 正在解读本次改动…</span>
                                   ) : (
-                                    <Typography.Paragraph
-                                      style={{ marginBottom: 0, whiteSpace: 'pre-wrap', fontSize: 13 }}
-                                    >
-                                      {aiSummaries[item.hash]}
-                                    </Typography.Paragraph>
+                                    <>
+                                      <div style={{ fontWeight: 600, marginBottom: 4, color: '#0958d9', fontSize: 12 }}>
+                                        📋 本次改动说明
+                                      </div>
+                                      <div style={{ lineHeight: 1.7 }}>
+                                        {renderAiSummary(aiSummaries[item.hash])}
+                                      </div>
+                                    </>
                                   )
                                 ) : (
-                                  <Space>
+                                  <Space size={6}>
                                     <Button
                                       size="small"
-                                      type="primary"
+                                      type="link"
                                       icon={<FileTextOutlined />}
+                                      style={{ padding: 0, fontSize: 13 }}
                                       onClick={() => explainWithAi(item.hash)}
                                     >
                                       用大白话解读本次改动
                                     </Button>
-                                    <span style={{ fontSize: 12, color: '#888' }}>
-                                      （需可用的 AI CLI，把代码改动翻译成产品语言）
-                                    </span>
+                                    <span style={{ fontSize: 11, color: '#999' }}>（需 AI CLI）</span>
                                   </Space>
                                 )}
                               </div>
-                              {/* 给产品看的大白话概览 */}
-                              <div style={{ fontSize: 13, lineHeight: 1.9 }}>
-                                {item.message && (
-                                  <div>
-                                    <b>本次改动说明：</b>
-                                    {item.message}
-                                  </div>
-                                )}
-                                {summary && summary.files.length > 0 ? (
-                                  <div>
-                                    共改动 <b>{summary.files.length}</b> 个文件（新增约 {summary.added} 处、删减约{' '}
-                                    {summary.removed} 处）：
-                                  </div>
-                                ) : (
-                                  <div>该快照在当前范围内没有代码改动。</div>
-                                )}
-                              </div>
-                              {summary && summary.files.length > 0 && (
-                                <div style={{ marginTop: 6 }}>
-                                  <Space size={[6, 6]} wrap>
-                                    {summary.files.map((f) => (
-                                      <Tag key={f.file} color={STATUS_COLOR[f.status]}>
-                                        {f.friendly}（{f.status}）
-                                      </Tag>
-                                    ))}
-                                  </Space>
-                                </div>
-                              )}
-                              {/* 技术细节收起，默认不展示 */}
-                              <Collapse
-                                ghost
-                                size="small"
-                                style={{ marginTop: 8 }}
-                                items={[
-                                  {
-                                    key: 'detail',
-                                    label: (
-                                      <span style={{ color: '#888', fontSize: 12 }}>
-                                        技术细节（开发参考，点击展开）
-                                      </span>
-                                    ),
-                                    children: <pre style={DIFF_STYLE}>{diffObj.diff}</pre>,
-                                  },
-                                ]}
-                              />
                             </div>
                           )
                         )}

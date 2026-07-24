@@ -3,6 +3,7 @@ import { execFile } from 'child_process';
 import { promisify } from 'util';
 import fs from 'fs';
 import path from 'path';
+import { invalidateEntriesCache } from './entriesApi.js';
 import { projectRoot, sendJson, sendError, readJsonBody, getPathname, getQuery } from './utils';
 
 const execFileAsync = promisify(execFile);
@@ -65,6 +66,7 @@ function cleanupCompareDirs() {
       try { fs.rmSync(d, { recursive: true, force: true }); } catch { /* ignore */ }
     }
   }
+  invalidateEntriesCache();
 }
 
 export function comparePlugin(): Plugin {

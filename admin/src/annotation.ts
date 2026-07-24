@@ -4,6 +4,8 @@ export interface PickedElement {
   selector: string;
   x: number;
   y: number;
+  /** 元素的可见文本，用于 AI 修改 DOM 后 CSS 选择器漂移时的文字兜底匹配 */
+  elementText?: string;
 }
 
 const STYLE_ID = 'ph-annotation-style';
@@ -108,10 +110,12 @@ export function enablePicking(doc: Document, onPick: (picked: PickedElement) => 
     e.stopPropagation();
     const rect = el.getBoundingClientRect();
     const win = doc.defaultView!;
+    const elemText = (el.textContent || '').trim().slice(0, 60) || undefined;
     onPick({
       selector: computeSelector(el),
       x: Math.round(rect.left + win.scrollX),
       y: Math.round(rect.top + win.scrollY),
+      elementText: elemText,
     });
   };
 
@@ -166,7 +170,45 @@ export function renderMarkers(
 
   groups.forEach((group) => {
     const selector = group[0].selector;
-    const el = doc.querySelector(selector);
+    const elemText = (group[0] as any).elementText as string | undefined;
+    const storedX = group[0].x;
+    const storedY = group[0].y;
+    let el: Element | null = null;
+
+    // 步骤 1：CSS 选择器匹配
+    const selMatch = doc.querySelector(selector) as HTMLElement | null;
+
+    // 步骤 2：如果有 elementText，验证 CSS 匹配是否准确
+    if (selMatch && elemText) {
+      const selText = (selMatch.textContent || '').trim();
+      if (selText === elemText || selText.includes(elemText) || elemText.includes(selText)) {
+        el = selMatch; // 文字匹配，选择器正确
+      }
+      // 文字不匹配 → 选择器发生了漂移，走步骤 3
+    } else if (selMatch) {
+      el = selMatch; // 无 elementText 兜底，直接信任选择器
+    }
+
+    // 步骤 3：用文字 + 位置兜底找（收集所有匹配，选距存储坐标最近的）
+    if (!el && elemText) {
+      const candidates: { node: Element; dist: number }[] = [];
+      const walker = doc.createTreeWalker(doc.body, NodeFilter.SHOW_ELEMENT);
+      let node: Element | null = walker.currentNode as Element;
+      while ((node = walker.nextNode() as Element | null)) {
+        const t = (node.textContent || '').trim();
+        const match = t === elemText || (t.length > 2 && elemText.length > 2 && (t.includes(elemText) || elemText.includes(t)));
+        if (!match) continue;
+        const rect = node.getBoundingClientRect();
+        const cx = rect.left + rect.width / 2;
+        const cy = rect.top + rect.height / 2;
+        const dist = Math.sqrt((cx - storedX) ** 2 + (cy - storedY) ** 2);
+        candidates.push({ node, dist });
+      }
+      // 按距离排序，取最近的（位置兜底解决同名元素歧义）
+      candidates.sort((a, b) => a.dist - b.dist);
+      el = candidates[0]?.node || null;
+    }
+
     if (!el) {
       // 元素已被 AI 改动删除/结构变化，批注不再静默消失，标记为失效
       orphan.push(...group);

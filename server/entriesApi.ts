@@ -89,7 +89,7 @@ export function collectEntries(): EntryItem[] {
   const groupMap = buildProtoGroupMap();
 
   for (const name of scanDir(path.join(projectRoot, 'src/prototypes'))) {
-    if (name.startsWith('.')) continue; // 跳过 .groups.json 等隐藏文件
+    if (name.startsWith('.') || name.startsWith('__cmp_')) continue; // 跳过隐藏文件和对比临时目录
     if (!fs.existsSync(path.join(projectRoot, 'src/prototypes', name, 'index.tsx'))) continue;
     const g = groupMap.get(name);
     items.push({
@@ -217,7 +217,7 @@ function getEntries(): EntryItem[] {
   return items;
 }
 
-function invalidateEntries() {
+export function invalidateEntriesCache() {
   entriesCache = null;
 }
 
@@ -242,7 +242,7 @@ export function entriesApiPlugin(): Plugin {
             if (groups.find((g) => g.id === body.id)) return sendError(res, '分组 ID 已存在');
             groups.push({ id: body.id, name: body.name, prototypes: body.prototypes || [] });
             writeGroups(groups);
-            invalidateEntries();
+            invalidateEntriesCache();
             sendJson(res, { success: true });
             return;
           }
@@ -255,7 +255,7 @@ export function entriesApiPlugin(): Plugin {
             if (idx === -1) return sendError(res, '分组不存在', 404);
             groups[idx] = { id: body.id, name: body.name, prototypes: body.prototypes || groups[idx].prototypes };
             writeGroups(groups);
-            invalidateEntries();
+            invalidateEntriesCache();
             sendJson(res, { success: true });
             return;
           }
@@ -265,7 +265,7 @@ export function entriesApiPlugin(): Plugin {
             if (!id) return sendError(res, '缺少 id');
             const groups = readGroups().filter((g) => g.id !== id);
             writeGroups(groups);
-            invalidateEntries();
+            invalidateEntriesCache();
             sendJson(res, { success: true });
             return;
           }
@@ -286,7 +286,7 @@ export function entriesApiPlugin(): Plugin {
               target.prototypes.push(body.prototype);
             }
             writeGroups(groups);
-            invalidateEntries();
+            invalidateEntriesCache();
             sendJson(res, { success: true });
             return;
           }
@@ -308,7 +308,7 @@ export function entriesApiPlugin(): Plugin {
             const title = body.title?.trim() || body.name;
             fs.writeFileSync(path.join(target, 'index.tsx'), PROTOTYPE_TEMPLATE(title), 'utf8');
             fs.writeFileSync(path.join(target, 'spec.md'), `# ${title}\n\n## 功能概述\n\n（在此描述原型的目标与功能）\n`, 'utf8');
-            invalidateEntries();
+            invalidateEntriesCache();
             sendJson(res, { success: true });
             return;
           }
@@ -339,7 +339,7 @@ export function entriesApiPlugin(): Plugin {
               const spec = fs.readFileSync(specPath, 'utf8');
               fs.writeFileSync(specPath, spec.replace(/^#\s+.*/m, `# ${body.newName}`), 'utf8');
             }
-            invalidateEntries();
+            invalidateEntriesCache();
             sendJson(res, { success: true });
             return;
           }
@@ -363,7 +363,7 @@ export function entriesApiPlugin(): Plugin {
               }
               if (changed) writeGroups(groups);
             }
-            invalidateEntries();
+            invalidateEntriesCache();
             sendJson(res, { success: true });
             return;
           }

@@ -25,6 +25,8 @@ export interface Annotation {
   text: string;
   status: 'open' | 'done' | 'resolved';
   createdAt: string;
+  /** 被标注元素上的可见文字，用于 CSS 选择器漂移时的兜底匹配 */
+  elementText?: string;
 }
 
 export interface GitLogItem {

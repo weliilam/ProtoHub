@@ -4,6 +4,22 @@ import { useEffect, useMemo, useState } from 'react';
 import { api } from '../api';
 import type { Annotation, CliStatus } from '../types';
 
+/** 从 CSS 选择器中提炼出友好标签（取最后一个有意义的 class 名 + 元素名） */
+function friendlySelectorHint(selector: string): string {
+  // 优先从末段（最贴近目标的层级）抽取元素 + 关键 class
+  const segments = selector.split('>').map((s) => s.trim()).filter(Boolean);
+  const last = segments[segments.length - 1] || selector;
+  const m = last.match(/^([\w-]+)(?:(?:\.([\w-]+(?:-[\w-]+)*))|$)/);
+  if (m) {
+    const tag = m[1];
+    const cls = m[2] || '';
+    // ant-* / 自定义短类
+    const shortCls = cls.replace(/^ant-/, '').split('-')[0];
+    return shortCls ? `${tag}.${shortCls}` : tag;
+  }
+  return selector.slice(0, 40) + (selector.length > 40 ? '…' : '');
+}
+
 interface Props {
   target: string;
   annotations: Annotation[];
@@ -396,8 +412,8 @@ export default function AnnotationPanel({ target, annotations, onToggleStatus, o
                   </Tag>
                 </Space>
                 <Typography.Paragraph style={{ marginBottom: 6, fontSize: 13 }}>{a.text}</Typography.Paragraph>
-                <Typography.Text type="secondary" style={{ fontSize: 11, wordBreak: 'break-all' }}>
-                  {a.selector}
+                <Typography.Text type="secondary" style={{ fontSize: 11 }}>
+                  标注元素：{a.elementText || friendlySelectorHint(a.selector)}
                 </Typography.Text>
                 <div style={{ marginTop: 8 }}>
                   <Space size={4}>

@@ -235,6 +235,7 @@ export default function App() {
         x: pendingPick.x,
         y: pendingPick.y,
         text: annotationText.trim(),
+        elementText: pendingPick.elementText,
       });
       setAnnotations(await api.listAnnotations(selected.name));
       setUndoStack((s) => [...s, { kind: 'add', annotation: created }]);
