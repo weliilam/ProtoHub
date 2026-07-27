@@ -8,6 +8,7 @@ import {
   Space,
   Input,
   Select,
+  AutoComplete,
   DatePicker,
   Modal,
   Typography,
@@ -204,6 +205,13 @@ const Component = () => {
   const [dataSource, setDataSource] = useState(MOCK_DATA);
   const [logVisible, setLogVisible] = useState(false);
   const [logRecord, setLogRecord] = useState<any>(null);
+
+  // 客户代码下拉筛选选项：取自当前数据的唯一客户代码
+  const customerCodeOptions = useMemo(() => {
+    const set = new Set<string>();
+    dataSource.forEach((d) => d.customer_code && set.add(d.customer_code));
+    return Array.from(set).map((c) => ({ value: c, label: c }));
+  }, [dataSource]);
 
   // ---------- 过滤（仅对已应用的筛选条件生效） ----------
   const filteredData = useMemo(() => {
@@ -462,12 +470,17 @@ const Component = () => {
         <div className="ioss-search-row">
           <div className="ioss-search-item">
             <span className="ioss-search-label">客户代码</span>
-            <Input
-              placeholder="请输入"
+            <AutoComplete
+              placeholder="请输入或选择"
               value={searchCustomerCode}
-              onChange={(e) => setSearchCustomerCode(e.target.value)}
-              className="ioss-input"
+              options={customerCodeOptions}
+              onChange={(v) => setSearchCustomerCode(v ?? '')}
+              onSelect={(v) => setSearchCustomerCode(v)}
+              filterOption={(input, option) =>
+                (option?.value as string)?.toLowerCase().includes(input.toLowerCase())
+              }
               allowClear
+              className="ioss-input"
             />
           </div>
           <div className="ioss-search-item ioss-search-item-grow">
