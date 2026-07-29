@@ -69,6 +69,7 @@ const MOCK_DATA: WarehouseItem[] = [
 
 export default function App() {
   const [keyWord, setKeyWord] = useState('');
+  const [country, setCountry] = useState<string | undefined>(undefined);
   const [data, setData] = useState<WarehouseItem[]>(MOCK_DATA);
   const [selectedKeys, setSelectedKeys] = useState<Key[]>([]);
 
@@ -85,16 +86,18 @@ export default function App() {
 
   const filtered = useMemo(() => {
     const k = keyWord.trim().toLowerCase();
-    if (!k) return data;
-    return data.filter(
-      (d) =>
+    return data.filter((d) => {
+      const matchKey =
+        !k ||
         d.WarehouseCode.toLowerCase().includes(k) ||
         d.Street1.toLowerCase().includes(k) ||
         d.Province.toLowerCase().includes(k) ||
         d.City.toLowerCase().includes(k) ||
-        d.PostalCode.toLowerCase().includes(k),
-    );
-  }, [keyWord, data]);
+        d.PostalCode.toLowerCase().includes(k);
+      const matchCountry = !country || d.CountryCode === country;
+      return matchKey && matchCountry;
+    });
+  }, [keyWord, country, data]);
 
   const { canDisable, canEnable } = useMemo(() => {
     const rows = data.filter((d) => selectedKeys.includes(d.AddressId));
@@ -104,7 +107,10 @@ export default function App() {
     };
   }, [data, selectedKeys]);
 
-  const handleReset = () => setKeyWord('');
+  const handleReset = () => {
+    setKeyWord('');
+    setCountry(undefined);
+  };
 
   const openAdd = () => {
     setEditRow(null);
@@ -174,14 +180,6 @@ export default function App() {
     { title: '邮编', dataIndex: 'PostalCode', width: 120, sorter: strSorter('PostalCode') },
     { title: '云途仓库代码', dataIndex: 'YTWarehouseCode', width: 180, sorter: strSorter('YTWarehouseCode') },
     {
-      title: '状态',
-      dataIndex: 'IsEnabled',
-      width: 100,
-      sorter: strSorter('IsEnabled'),
-      render: (v: string) =>
-        v === 'Y' ? <Tag color="success">启用</Tag> : v === 'N' ? <Tag color="error">禁用</Tag> : null,
-    },
-    {
       title: '操作',
       dataIndex: 'Operation',
       width: 90,
@@ -216,6 +214,16 @@ export default function App() {
               onPressEnter={handleReset}
             />
           </Form.Item>
+          <Form.Item label="国家">
+            <Select
+              allowClear
+              placeholder="请选择国家"
+              style={{ width: 160 }}
+              options={COUNTRY_OPTIONS}
+              value={country}
+              onChange={setCountry}
+            />
+          </Form.Item>
           <Form.Item>
             <Space>
               <Button type="primary" icon={<SearchOutlined />} onClick={handleReset}>查询</Button>
@@ -227,7 +235,7 @@ export default function App() {
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, flexWrap: 'wrap', gap: 8 }}>
           <Space wrap>
             <Button type="primary" icon={<PlusOutlined />} onClick={openAdd}>新增</Button>
-            <Button onClick={() => setSecOpen(true)}>二级地址配置</Button>
+            <Button onClick={() => setSecOpen(true)}>地址配置</Button>
             <Button onClick={() => setImportOpen(true)}>批量导入</Button>
             <Button onClick={() => setExportOpen(true)}>批量导出</Button>
             <Button disabled={!canDisable} onClick={() => handleEnableDisable(false)}>禁用</Button>
