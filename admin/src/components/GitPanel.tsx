@@ -134,7 +134,7 @@ export default function GitPanel({ selected, onRestored }: Props) {
   const [loading, setLoading] = useState(false);
   // 展开查看 diff 的快照：hash -> { diff } 或加载中
   const [expanded, setExpanded] = useState<Record<string, { diff: string } | 'loading'>>({});
-  const LS_KEY_AI = 'proto-hub-ai-summaries';
+  const LS_KEY_AI = 'hatch-ai-summaries';
 
   // 读取 localStorage 中持久化的 AI 解读
   function loadAiSummaries(): Record<string, string> {

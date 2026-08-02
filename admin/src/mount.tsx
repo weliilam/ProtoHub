@@ -41,7 +41,7 @@ async function mountVue(container: HTMLElement, entry: string) {
       const ant = await import('ant-design-vue');
       await import('ant-design-vue/dist/reset.css');
       app.use(ant.default);
-      console.warn('[proto-hub] UI 库加载失败，已回退 Ant Design Vue：', e);
+      console.warn('[hatch] UI 库加载失败，已回退 Ant Design Vue：', e);
     }
 
     app.mount(container);

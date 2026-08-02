@@ -246,20 +246,32 @@ body {
 }
 
 .ph-sidebar-title {
-  font-size: 16px;
-  font-weight: 600;
+  font-size: 17px;
+  font-weight: 700;
   display: flex;
   align-items: center;
-  gap: 8px;
-  background: var(--ph-gradient);
-  -webkit-background-clip: text;
-  background-clip: text;
-  -webkit-text-fill-color: transparent;
+  gap: 10px;
+  color: var(--ph-text);
+  letter-spacing: -0.3px;
 }
 
-.ph-sidebar-title .anticon {
-  -webkit-text-fill-color: initial;
-  color: var(--ph-accent);
+/* ── Logo Mark ── */
+.ph-logo-mark {
+  width: 34px;
+  height: 34px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 0.25s ease;
+}
+
+.ph-sidebar-title:hover .ph-logo-mark {
+  transform: scale(1.06);
+}
+
+.ph-logo-text {
+  color: var(--ph-text);
 }
 
 /* 主题切换按钮：渐变边框 + 微光 */

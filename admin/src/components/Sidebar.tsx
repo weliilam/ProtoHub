@@ -808,8 +808,31 @@ export default function Sidebar(props: SidebarProps) {
     <div className="ph-sidebar">
       <div className="ph-sidebar-header">
         <div className="ph-sidebar-title">
-          <AppstoreOutlined style={{ color: 'var(--ph-sidebar-folder-open)' }} />
-          Proto Hub
+          <div className="ph-logo-mark">
+            <svg viewBox="0 0 36 36" width="32" height="32" aria-hidden="true">
+              <defs>
+                <linearGradient id="ph-logo-grad" x1="0" y1="0" x2="1" y2="1">
+                  <stop offset="0%" style={{ stopColor: 'var(--ph-accent)' }} />
+                  <stop offset="100%" style={{ stopColor: 'var(--ph-accent-2)' }} />
+                </linearGradient>
+                <clipPath id="ph-logo-clip">
+                  <circle cx="18" cy="20" r="14" />
+                </clipPath>
+              </defs>
+              {/* 飞出的蛋壳碎片 */}
+              <rect x="24.5" y="1" width="6.5" height="6.5" rx="1.5" transform="rotate(20 27.75 4.25)" fill="url(#ph-logo-grad)" />
+              {/* 蛋体 */}
+              <circle cx="18" cy="20" r="14" fill="url(#ph-logo-grad)" />
+              {/* 锯齿裂纹：负空间，clip 到蛋体边缘形成"破壳" */}
+              <polyline
+                points="2,20 7,15.5 12.5,23 18,15.5 23.5,23 29,15.5 34,20"
+                clipPath="url(#ph-logo-clip)"
+                fill="none"
+                style={{ stroke: 'var(--ph-panel-bg)', strokeWidth: 2.6, strokeLinecap: 'round', strokeLinejoin: 'round' }}
+              />
+            </svg>
+          </div>
+          <span className="ph-logo-text">Hatch</span>
         </div>
       </div>
       <div style={{ padding: '8px 12px 0' }}>
