@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Button, Dropdown, Empty, Input, Modal, Select, Space, Tabs, Tag, Tooltip, message } from 'antd';
 import {
   AppstoreOutlined,
@@ -13,6 +13,7 @@ import {
   PlusOutlined,
   ReloadOutlined,
   RightOutlined,
+  SearchOutlined,
   SkinOutlined,
   UngroupOutlined,
 } from '@ant-design/icons';
@@ -28,11 +29,12 @@ interface SidebarProps {
   onDelete: (item: EntryItem) => Promise<void>;
   onRefresh: () => void;
   onPrdPreview?: (doc: PrdDoc | null) => void;
+  onOpenCmdk?: () => void;
 }
 
 const TYPE_ICON: Record<EntryType, React.ReactNode> = {
   prototype: <AppstoreOutlined />,
-  component: <AppstoreOutlined style={{ color: '#722ed1' }} />,
+  component: <AppstoreOutlined style={{ color: 'var(--ph-accent-2)' }} />,
   doc: <FileTextOutlined />,
   theme: <SkinOutlined />,
   table: <DatabaseOutlined />,
@@ -50,10 +52,10 @@ function EntryRow(props: {
   const { item, active, groups, onMoveGroup } = props;
 
   const handleRename = () => {
-    let value = item.title;
+    let value = item.name;
     Modal.confirm({
       title: '重命名',
-      content: <Input defaultValue={item.title} onChange={(e) => (value = e.target.value)} style={{ marginTop: 8 }} />,
+      content: <Input defaultValue={item.name} onChange={(e) => (value = e.target.value)} style={{ marginTop: 8 }} />,
       okText: '确定',
       cancelText: '取消',
       onOk: () => {
@@ -158,7 +160,7 @@ function PrototypeInfoView({ info }: { info: PrototypeInfo }) {
   return (
     <div>
       <div style={{ marginBottom: 14 }}>
-        <div style={{ fontWeight: 600, marginBottom: 6, color: '#555' }}>基本信息</div>
+        <div style={{ fontWeight: 600, marginBottom: 6, color: 'var(--ph-sidebar-section)' }}>基本信息</div>
         <div style={{ fontSize: 13, lineHeight: 1.9 }}>
           <div>原型名称：{info.name}</div>
           <div>显示标题：{info.title}</div>
@@ -169,7 +171,7 @@ function PrototypeInfoView({ info }: { info: PrototypeInfo }) {
         </div>
       </div>
       <div style={{ marginBottom: 14 }}>
-        <div style={{ fontWeight: 600, marginBottom: 6, color: '#555' }}>使用的界面组件（{antd.length}）</div>
+        <div style={{ fontWeight: 600, marginBottom: 6, color: 'var(--ph-sidebar-section)' }}>使用的界面组件（{antd.length}）</div>
         {antd.length ? (
           <Space size={[4, 4]} wrap>
             {antd.map((c) => (
@@ -183,7 +185,7 @@ function PrototypeInfoView({ info }: { info: PrototypeInfo }) {
         )}
       </div>
       <div style={{ marginBottom: 14 }}>
-        <div style={{ fontWeight: 600, marginBottom: 6, color: '#555' }}>本地模块（{local.length}）</div>
+        <div style={{ fontWeight: 600, marginBottom: 6, color: 'var(--ph-sidebar-section)' }}>本地模块（{local.length}）</div>
         {local.length ? (
           <Space size={[4, 4]} wrap>
             {local.map((m) => (
@@ -195,7 +197,7 @@ function PrototypeInfoView({ info }: { info: PrototypeInfo }) {
         )}
       </div>
       <div style={{ marginBottom: 14 }}>
-        <div style={{ fontWeight: 600, marginBottom: 6, color: '#555' }}>依赖的第三方库（{libs.length}）</div>
+        <div style={{ fontWeight: 600, marginBottom: 6, color: 'var(--ph-sidebar-section)' }}>依赖的第三方库（{libs.length}）</div>
         {libs.length ? (
           <Space size={[4, 4]} wrap>
             {libs.map((l) => (
@@ -208,7 +210,7 @@ function PrototypeInfoView({ info }: { info: PrototypeInfo }) {
       </div>
       {icons.length > 0 && (
         <div style={{ marginBottom: 8 }}>
-          <div style={{ fontWeight: 600, marginBottom: 6, color: '#555' }}>使用的图标（{icons.length}）</div>
+          <div style={{ fontWeight: 600, marginBottom: 6, color: 'var(--ph-sidebar-section)' }}>使用的图标（{icons.length}）</div>
           <Space size={[4, 4]} wrap>
             {icons.map((i) => (
               <Tag key={i} color="purple">
@@ -301,7 +303,7 @@ function GroupPanel(props: {
     <div className="ph-folder-group">
       <div className="ph-folder-header" onClick={props.onToggle}>
         <RightOutlined className={`ph-folder-icon${props.isOpen ? ' open' : ''}`} />
-        {props.isOpen ? <FolderOpenOutlined style={{ color: '#1677ff' }} /> : <FolderOutlined style={{ color: '#888' }} />}
+        {props.isOpen ? <FolderOpenOutlined style={{ color: 'var(--ph-sidebar-folder-open)' }} /> : <FolderOutlined style={{ color: 'var(--ph-sidebar-folder-closed)' }} />}
         <span className="ph-folder-title">{group.name}</span>
         <span className="ph-folder-count">{items.length}</span>
         <span onClick={(e) => e.stopPropagation()}>
@@ -325,27 +327,33 @@ function GroupPanel(props: {
       </div>
       {props.isOpen && (
         <div className="ph-folder-body">
-          {items.map((item, idx) => (
-            <div
-              key={item.name}
-              draggable
-              className={`ph-drag-item${dropIndex === idx ? ' drop-active' : ''}`}
-              onDragStart={(e) => handleDragStart(e, idx)}
-              onDragOver={(e) => handleDragOver(e, idx)}
-              onDragEnd={handleDragEnd}
-              onDrop={(e) => handleDrop(e, idx)}
-            >
-              <EntryRow
-                item={item}
-                active={selected?.type === item.type && selected?.name === item.name}
-                onSelect={() => props.onSelect(item)}
-                onRename={(newName) => props.onRename(item, newName)}
-                onDelete={() => props.onDelete(item)}
-                groups={allGroups}
-                onMoveGroup={props.onMoveGroup}
-              />
+          {items.length === 0 ? (
+            <div style={{ padding: '8px 12px', fontSize: 12, color: 'var(--ph-sidebar-meta)', textAlign: 'center' }}>
+              暂无原型，可将原型移入此分组
             </div>
-          ))}
+          ) : (
+            items.map((item, idx) => (
+              <div
+                key={item.name}
+                draggable
+                className={`ph-drag-item${dropIndex === idx ? ' drop-active' : ''}`}
+                onDragStart={(e) => handleDragStart(e, idx)}
+                onDragOver={(e) => handleDragOver(e, idx)}
+                onDragEnd={handleDragEnd}
+                onDrop={(e) => handleDrop(e, idx)}
+              >
+                <EntryRow
+                  item={item}
+                  active={selected?.type === item.type && selected?.name === item.name}
+                  onSelect={() => props.onSelect(item)}
+                  onRename={(newName) => props.onRename(item, newName)}
+                  onDelete={() => props.onDelete(item)}
+                  groups={allGroups}
+                  onMoveGroup={props.onMoveGroup}
+                />
+              </div>
+            ))
+          )}
           {/* 末尾可放置位：拖到最后一个元素下方 */}
           {items.length > 0 && (
             <div
@@ -365,8 +373,44 @@ export default function Sidebar(props: SidebarProps) {
   const { entries, selected } = props;
   const [tab, setTab] = useState('prototype');
   const [keyword, setKeyword] = useState('');
+  const [debouncedKeyword, setDebouncedKeyword] = useState('');
+  const debounceRef = useRef<ReturnType<typeof setTimeout>>();
   const [groups, setGroups] = useState<GroupConfig[]>([]);
-  const [openFolders, setOpenFolders] = useState<Set<string>>(new Set());
+  const [openFolders, setOpenFoldersRaw] = useState<Set<string>>(() => {
+    try {
+      const raw = localStorage.getItem('ph_open_folders');
+      return raw ? new Set(JSON.parse(raw)) : new Set();
+    } catch {
+      return new Set();
+    }
+  });
+  const hadSavedState = useRef(localStorage.getItem('ph_open_folders') !== null);
+
+  // 搜索关键词 150ms 防抖
+  const handleKeywordChange = (val: string) => {
+    setKeyword(val);
+    clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => setDebouncedKeyword(val), 150);
+  };
+
+  // 用户手动切换折叠时持久化到 localStorage
+  const setOpenFolders = (updater: (prev: Set<string>) => Set<string>) => {
+    setOpenFoldersRaw((prev) => {
+      const next = updater(prev);
+      try { localStorage.setItem('ph_open_folders', JSON.stringify([...next])); } catch {}
+      return next;
+    });
+  };
+
+  // 程序化展开（不覆盖用户已折叠的项）
+  const expandFolders = (...ids: string[]) => {
+    setOpenFoldersRaw((prev) => {
+      const next = new Set(prev);
+      ids.forEach((id) => next.add(id));
+      try { localStorage.setItem('ph_open_folders', JSON.stringify([...next])); } catch {}
+      return next;
+    });
+  };
   // 文档 Tab 中「飞书PRD」分组展示所有原型关联的飞书 PRD 文档
   const [prdItems, setPrdItems] = useState<{ name: string; docs: PrdDoc[] }[]>([]);
   const [prdSyncing, setPrdSyncing] = useState<Set<string>>(new Set());
@@ -382,14 +426,6 @@ export default function Sidebar(props: SidebarProps) {
       .then((d) => {
         const items = d.items || [];
         setPrdItems(items);
-        // 自动展开所有有关联文档的原型文件夹
-        if (items.length > 0) {
-          setOpenFolders((prev) => {
-            const next = new Set(prev);
-            items.forEach((it) => next.add(`prd-${it.name}`));
-            return next;
-          });
-        }
       })
       .catch(() => setPrdItems([]));
   }, [tab, entries]);
@@ -397,15 +433,32 @@ export default function Sidebar(props: SidebarProps) {
   useEffect(() => {
     api.fetchGroups().then((groups) => {
       setGroups(groups || []);
-      // 分组默认全部展开
-      setOpenFolders(new Set((groups || []).map((g) => g.id)));
+      const ids = (groups || []).map((g) => g.id);
+      if (!hadSavedState.current) {
+        // 首次访问：展开所有分组
+        expandFolders(...ids);
+        hadSavedState.current = true;
+      } else {
+        // 后续访问：仅清理已删除的分组 ID，保留用户手动折叠/展开状态
+        setOpenFolders((prev) => {
+          const next = new Set(prev);
+          let changed = false;
+          next.forEach((id) => {
+            if (!ids.includes(id)) { next.delete(id); changed = true; }
+          });
+          return changed ? next : prev;
+        });
+      }
     }).catch(() => {});
   }, [entries]);
 
+  // 卸载时清理搜索防抖定时器
+  useEffect(() => () => clearTimeout(debounceRef.current), []);
+
   const filtered = useMemo(() => {
-    const kw = keyword.trim().toLowerCase();
-    return entries.filter((e) => !kw || e.name.toLowerCase().includes(kw) || e.title.toLowerCase().includes(kw));
-  }, [entries, keyword]);
+    const kw = debouncedKeyword.trim().toLowerCase();
+    return entries.filter((e) => !kw || e.name.toLowerCase().includes(kw) || (e.title || '').toLowerCase().includes(kw));
+  }, [entries, debouncedKeyword]);
 
   const byType = (t: EntryType) => filtered.filter((e) => e.type === t);
 
@@ -603,7 +656,7 @@ export default function Sidebar(props: SidebarProps) {
             return next;
           })}>
             <RightOutlined className={`ph-folder-icon${isOpen ? ' open' : ''}`} />
-            {isOpen ? <FolderOpenOutlined style={{ color: '#1677ff' }} /> : <FolderOutlined style={{ color: '#888' }} />}
+            {isOpen ? <FolderOpenOutlined style={{ color: 'var(--ph-sidebar-folder-open)' }} /> : <FolderOutlined style={{ color: 'var(--ph-sidebar-folder-closed)' }} />}
             <span className="ph-folder-title">{protoTitle}</span>
             <span className="ph-folder-count">{it.docs.length}</span>
             <span onClick={(e) => e.stopPropagation()}>
@@ -624,7 +677,7 @@ export default function Sidebar(props: SidebarProps) {
                     style={{ cursor: 'pointer', flexDirection: 'column', alignItems: 'stretch', padding: '6px 8px 6px 12px' }}
                     onClick={() => props.onPrdPreview?.(doc)}>
                     <div style={{ display: 'flex', alignItems: 'center', width: '100%' }}>
-                      <FileTextOutlined style={{ color: '#1677ff', flexShrink: 0 }} />
+                      <FileTextOutlined style={{ color: 'var(--ph-sidebar-folder-open)', flexShrink: 0 }} />
                       <span className="ph-entry-name"
                         style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginLeft: 8 }}>
                         {label}
@@ -643,7 +696,7 @@ export default function Sidebar(props: SidebarProps) {
                       </span>
                     </div>
                     {doc.summary && (
-                      <div style={{ fontSize: 11, color: '#999', marginTop: 4, paddingLeft: 22, lineHeight: 1.4, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      <div style={{ fontSize: 11, color: 'var(--ph-sidebar-meta)', marginTop: 4, paddingLeft: 22, lineHeight: 1.4, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                         {doc.summary}
                       </div>
                     )}
@@ -700,7 +753,7 @@ export default function Sidebar(props: SidebarProps) {
 
   const renderPrototypeList = () => {
     const { grouped, ungrouped } = groupedProtos;
-    const orderedGroups = groups.filter((g) => grouped[g.id]?.length > 0);
+    const orderedGroups = groups; // 显示全部分组，包括空分组
     const hasAny = orderedGroups.length > 0 || ungrouped.length > 0;
     if (!hasAny) return <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="暂无" style={{ margin: '24px 0' }} />;
 
@@ -731,7 +784,7 @@ export default function Sidebar(props: SidebarProps) {
           />
         ))}
         {ungrouped.length > 0 && (
-          <div style={{ padding: '4px 8px', fontSize: 11, color: '#aaa', marginTop: 8, fontWeight: 600 }}>
+          <div style={{ padding: '4px 8px', fontSize: 11, color: 'var(--ph-sidebar-desc)', marginTop: 8, fontWeight: 600 }}>
             未分组 ({ungrouped.length})
           </div>
         )}
@@ -755,12 +808,19 @@ export default function Sidebar(props: SidebarProps) {
     <div className="ph-sidebar">
       <div className="ph-sidebar-header">
         <div className="ph-sidebar-title">
-          <AppstoreOutlined style={{ color: '#1677ff' }} />
+          <AppstoreOutlined style={{ color: 'var(--ph-sidebar-folder-open)' }} />
           Proto Hub
         </div>
       </div>
-      <div style={{ padding: '8px 12px' }}>
-        <Input.Search placeholder="搜索..." size="small" allowClear onChange={(e) => setKeyword(e.target.value)} />
+      <div style={{ padding: '8px 12px 0' }}>
+        <Input.Search placeholder="搜索..." size="small" allowClear value={keyword} onChange={(e) => handleKeywordChange(e.target.value)} onClear={() => { setKeyword(''); setDebouncedKeyword(''); }} />
+        {props.onOpenCmdk && (
+          <button className="ph-cmdk-trigger" onClick={props.onOpenCmdk}>
+            <SearchOutlined />
+            全局搜索 / 命令
+            <kbd>Ctrl K</kbd>
+          </button>
+        )}
       </div>
       <Tabs
         className="ph-sidebar-tabs"
@@ -806,11 +866,11 @@ export default function Sidebar(props: SidebarProps) {
         )}
         {tab === 'resource' && (
           <>
-            <div style={{ padding: '4px 8px', fontSize: 12, color: '#999' }}>组件</div>
+            <div style={{ padding: '4px 8px', fontSize: 12, color: 'var(--ph-sidebar-category)' }}>组件</div>
             {renderList(byType('component'))}
-            <div style={{ padding: '12px 8px 4px', fontSize: 12, color: '#999' }}>主题</div>
+            <div style={{ padding: '12px 8px 4px', fontSize: 12, color: 'var(--ph-sidebar-category)' }}>主题</div>
             {renderList(byType('theme'))}
-            <div style={{ padding: '12px 8px 4px', fontSize: 12, color: '#999', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div style={{ padding: '12px 8px 4px', fontSize: 12, color: 'var(--ph-sidebar-category)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               数据表
               <Button type="text" size="small" icon={<PlusOutlined />} onClick={() => handleCreate('table')} />
             </div>
@@ -832,7 +892,7 @@ export default function Sidebar(props: SidebarProps) {
       >
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 8 }}>
           <div>
-            <div style={{ fontSize: 12, color: '#666', marginBottom: 4 }}>关联到原型</div>
+            <div style={{ fontSize: 12, color: 'var(--ph-text-secondary)', marginBottom: 4 }}>关联到原型</div>
             <Select
               showSearch
               allowClear
@@ -848,7 +908,7 @@ export default function Sidebar(props: SidebarProps) {
             />
           </div>
           <div>
-            <div style={{ fontSize: 12, color: '#666', marginBottom: 4 }}>飞书 PRD 链接</div>
+            <div style={{ fontSize: 12, color: 'var(--ph-text-secondary)', marginBottom: 4 }}>飞书 PRD 链接</div>
             <Input
               placeholder="https://xxx.feishu.cn/wiki/..."
               value={prdAddUrl}

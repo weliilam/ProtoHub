@@ -1,0 +1,10 @@
+<whiteboard type="mermaid">flowchart TD
+    A[运营勾选订单点击拦截] --&gt; B[系统弹出拦截弹窗]
+    B --&gt; C[运营选中一条拦截原因]
+    C --&gt; D{原因是否客户要求暂扣}
+    D --&gt;|是| E[拦截备注变红并标记为必填]
+    E --&gt; F{备注是否已填写}
+    F --&gt;|否| G[前端校验阻止并提示必填]
+    G --&gt; E
+    F --&gt;|是| H[提交拦截成功]
+    D --&gt;|否| H</whiteboard>

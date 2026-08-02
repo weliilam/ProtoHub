@@ -32,7 +32,7 @@ function renderAiSummary(text: string): React.ReactNode {
     const trimmed = line.trim();
     if (!trimmed) return <br key={i} />;
     return (
-      <div key={i} style={{ fontSize: 13, color: '#374151', lineHeight: 1.8 }}>
+      <div key={i} style={{ fontSize: 13, color: 'var(--ph-git-text)', lineHeight: 1.8 }}>
         {trimmed}
       </div>
     );
@@ -154,14 +154,18 @@ export default function GitPanel({ selected, onRestored }: Props) {
 
   // 按快照 hash 缓存 AI 生成的产品语言解读（大白话改动说明），刷新不丢失
   const [aiSummaries, setAiSummaries] = useState<Record<string, string>>(loadAiSummaries);
+  // 标记哪些 hash 正在流式生成中（用于显示 loading 指示器）
+  const [streamingHashes, setStreamingHashes] = useState<Set<string>>(new Set());
 
-  // 大白话解读：调用 AI 把代码 diff 翻译成非技术说明
+  // 大白话解读：调用 AI 把代码 diff 翻译成非技术说明（流式显示，实时更新）
   const explainWithAi = async (hash: string) => {
     const diffObj = expanded[hash];
     if (!diffObj || diffObj === 'loading') return;
-    const newVal: Record<string, string> = { ...aiSummaries, [hash]: 'loading' };
-    setAiSummaries(newVal);
-    saveAiSummaries(newVal);
+    // 先置为空字符串，标记为正在流式生成
+    const initVal: Record<string, string> = { ...aiSummaries, [hash]: '' };
+    setAiSummaries(initVal);
+    saveAiSummaries(initVal);
+    setStreamingHashes((prev) => new Set(prev).add(hash));
     try {
       const status = (await api.aiStatus()) as Record<string, CliStatus>;
       const available = Object.entries(status)
@@ -175,6 +179,11 @@ export default function GitPanel({ selected, onRestored }: Props) {
         };
         setAiSummaries(fallback);
         saveAiSummaries(fallback);
+        setStreamingHashes((prev) => {
+          const next = new Set(prev);
+          next.delete(hash);
+          return next;
+        });
         return;
       }
       const prompt = `你是一个简洁的需求说明助手。根据下面的代码改动（diff），用大白话（一行一条）写出具体改了什么。
@@ -188,7 +197,7 @@ export default function GitPanel({ selected, onRestored }: Props) {
 删除了旧的批量导出按钮
 
 要求：
-- 一行一条改动，用“调整了xx”、“新增了xx”、“删除了xx”、“修改了xx”开头
+- 一行一条改动，用"调整了xx"、"新增了xx"、"删除了xx"、"修改了xx"开头
 - 必须说清具体是哪个界面元素（列/按钮/搜索框/下拉框/弹窗/Tab/筛选器等）
 - 严禁出现：组件名、CSS类名、函数名、变量名、文件路径、API地址、import/export
 - 整体不超过 6 行，小改动1行即可
@@ -196,16 +205,35 @@ export default function GitPanel({ selected, onRestored }: Props) {
 
 改动内容：
 ${diffObj.diff.slice(0, 8000)}`;
-      const { output, timedOut } = await api.aiExecute(cli, prompt, () => {});
+      // 用 streaming 回调实时更新 aiSummaries[hash]，前端逐字可见
+      let streaming = '';
+      const { output, timedOut } = await api.aiExecute(cli, prompt, (chunk) => {
+        streaming += chunk;
+        setAiSummaries((prev) => {
+          const next = { ...prev, [hash]: streaming };
+          saveAiSummaries(next);
+          return next;
+        });
+      });
       const text = output.trim() || '（AI 未返回说明）';
       const finalText = timedOut ? `${text}\n\n[提示：AI 执行超时，说明可能不完整]` : text;
-      const finalVal = { ...aiSummaries, [hash]: finalText };
-      setAiSummaries(finalVal);
-      saveAiSummaries(finalVal);
+      setAiSummaries((prev) => {
+        const next = { ...prev, [hash]: finalText };
+        saveAiSummaries(next);
+        return next;
+      });
     } catch (e: any) {
-      const errVal = { ...aiSummaries, [hash]: `解读失败：${e.message}` };
-      setAiSummaries(errVal);
-      saveAiSummaries(errVal);
+      setAiSummaries((prev) => {
+        const next = { ...prev, [hash]: `解读失败：${e.message}` };
+        saveAiSummaries(next);
+        return next;
+      });
+    } finally {
+      setStreamingHashes((prev) => {
+        const next = new Set(prev);
+        next.delete(hash);
+        return next;
+      });
     }
   };
 
@@ -303,6 +331,15 @@ ${diffObj.diff.slice(0, 8000)}`;
 
   return (
     <>
+      <style>{`
+        @keyframes ai-blink {
+          0%, 50% { opacity: 1; }
+          51%, 100% { opacity: 0; }
+        }
+        .ai-cursor-blink {
+          animation: ai-blink 0.8s infinite;
+        }
+      `}</style>
       <div className="ph-right-panel-header">
         <span>
           <HistoryOutlined /> Git 快照
@@ -341,7 +378,7 @@ ${diffObj.diff.slice(0, 8000)}`;
             {compareSelected.length > 0 && (
               <div style={{ marginBottom: 12 }}>
                 <Space>
-                  <span style={{ fontSize: 12, color: '#666' }}>
+                  <span style={{ fontSize: 12, color: 'var(--ph-text-secondary)' }}>
                     已选 {compareSelected.length}/2 个版本
                   </span>
                   {compareSelected.length === 2 && (
@@ -383,7 +420,7 @@ ${diffObj.diff.slice(0, 8000)}`;
                             onChange={(e) => toggleCompareSelection(item.hash, e.target.checked)}
                           />
                           <Tag color="blue">{item.hash}</Tag>
-                          <span style={{ fontSize: 11, color: '#999', marginLeft: 'auto' }}>
+                          <span style={{ fontSize: 11, color: 'var(--ph-text-tertiary)', marginLeft: 'auto' }}>
                             {item.date}
                           </span>
                         </div>
@@ -427,31 +464,39 @@ ${diffObj.diff.slice(0, 8000)}`;
                         </div>
                         {isOpen && (
                           diffObj === 'loading' ? (
-                            <div style={{ color: '#888', fontSize: 12, marginTop: 8 }}>加载中…</div>
+                            <div style={{ color: 'var(--ph-text-secondary)', fontSize: 12, marginTop: 8 }}>加载中…</div>
                           ) : (
                             <div style={{ marginTop: 10, marginLeft: 28 }}>
                               {/* AI 改动解读（紧凑样式） */}
                               <div
                                 style={{
                                   padding: '10px 12px',
-                                  background: '#f5f8ff',
-                                  borderLeft: '3px solid #0958d9',
+                                  background: 'var(--ph-git-accent-bg)',
+                                  borderLeft: '3px solid var(--ph-git-accent-border)',
                                   borderRadius: 4,
                                 }}
                               >
-                                {aiSummaries[item.hash] ? (
-                                  aiSummaries[item.hash] === 'loading' ? (
-                                    <span style={{ fontSize: 12, color: '#1677ff' }}>AI 正在解读本次改动…</span>
-                                  ) : (
-                                    <>
-                                      <div style={{ fontWeight: 600, marginBottom: 4, color: '#0958d9', fontSize: 12 }}>
-                                        📋 本次改动说明
-                                      </div>
+                                {aiSummaries[item.hash] !== undefined ? (
+                                  <>
+                                    <div style={{ fontWeight: 600, marginBottom: 4, color: 'var(--ph-git-accent-color)', fontSize: 12 }}>
+                                      📋 本次改动说明
+                                    </div>
+                                    {aiSummaries[item.hash] ? (
                                       <div style={{ lineHeight: 1.7 }}>
                                         {renderAiSummary(aiSummaries[item.hash])}
+                                        {streamingHashes.has(item.hash) && (
+                                          <span className="ai-cursor-blink" style={{
+                                            display: 'inline-block', width: 2, height: 14,
+                                            background: 'var(--ph-git-accent-color)', marginLeft: 1, verticalAlign: 'text-bottom',
+                                          }} />
+                                        )}
                                       </div>
-                                    </>
-                                  )
+                                    ) : (
+                                      <span style={{ fontSize: 12, color: 'var(--ph-git-link)' }}>
+                                        AI 正在解读本次改动…
+                                      </span>
+                                    )}
+                                  </>
                                 ) : (
                                   <Space size={6}>
                                     <Button
@@ -463,7 +508,7 @@ ${diffObj.diff.slice(0, 8000)}`;
                                     >
                                       用大白话解读本次改动
                                     </Button>
-                                    <span style={{ fontSize: 11, color: '#999' }}>（需 AI CLI）</span>
+                                    <span style={{ fontSize: 11, color: 'var(--ph-text-tertiary)' }}>（需 AI CLI）</span>
                                   </Space>
                                 )}
                               </div>

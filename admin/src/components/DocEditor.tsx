@@ -1,13 +1,15 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Button, Space, Spin, message } from 'antd';
-import { SaveOutlined } from '@ant-design/icons';
+import { Button, Space, Spin, Tooltip, message } from 'antd';
+import { SaveOutlined, SunOutlined, MoonOutlined } from '@ant-design/icons';
 import { marked } from 'marked';
 import { api } from '../api';
+import { useTheme } from '../theme';
 
 export default function DocEditor({ name }: { name: string }) {
   const [content, setContent] = useState('');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const { themeMode, setThemeMode } = useTheme();
 
   useEffect(() => {
     setLoading(true);
@@ -51,6 +53,13 @@ export default function DocEditor({ name }: { name: string }) {
       <div className="ph-toolbar">
         <span className="ph-toolbar-title">{name}.md</span>
         <Space>
+          <Tooltip title={themeMode === 'dark' ? '切换到浅色模式' : '切换到深色模式'}>
+            <Button
+              size="small"
+              icon={themeMode === 'dark' ? <SunOutlined /> : <MoonOutlined />}
+              onClick={() => setThemeMode(themeMode === 'dark' ? 'light' : 'dark')}
+            />
+          </Tooltip>
           <Button type="primary" icon={<SaveOutlined />} loading={saving} onClick={save}>
             保存
           </Button>

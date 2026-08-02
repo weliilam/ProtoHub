@@ -1,5 +1,5 @@
 import type { Plugin } from 'vite';
-import { spawn, execFile } from 'child_process';
+import { spawn, execFile, ChildProcess } from 'child_process';
 import { promisify } from 'util';
 import { sendJson, sendError, readJsonBody, getPathname } from './utils';
 
@@ -28,8 +28,8 @@ async function which(bin: string): Promise<boolean> {
 /** 全局互斥锁：同一时刻只允许一个 AI CLI 在跑，避免并发改代码互相覆盖 */
 let aiRunning = false;
 let aiRunningSince = 0;
-/** 互斥锁兜底超时（ms）：如果 AI 进程崩溃导致锁未释放，超过此时间自动重置 */
-const AI_RUNNING_TIMEOUT = 240_000; // 4 分钟
+/** 互斥锁兜底超时（ms）：必须 >= 执行超时，否则 AI 正常跑完前锁就被重置，导致并发改代码 */
+const AI_RUNNING_TIMEOUT = 660_000; // 11 分钟（执行超时 10 分钟 + 1 分钟缓冲）
 
 function runCli(
   bin: string,
@@ -37,26 +37,26 @@ function runCli(
   prompt: string,
   timeoutMs: number,
   onProgress?: (chunk: string) => void,
-): Promise<{ output: string; timedOut: boolean }> {
-  return new Promise((resolve, reject) => {
-    const child = spawn(bin, args, {
-      cwd: process.cwd(),
-      shell: process.platform === 'win32',
-      env: { ...process.env },
-    });
-    let output = '';
-    let timedOut = false;
-    const timer = setTimeout(() => {
-      timedOut = true;
-      child.kill();
-    }, timeoutMs);
-    const push = (d: any) => {
-      const s = d.toString();
-      output += s;
-      onProgress?.(s);
-    };
-    child.stdout?.on('data', push);
-    child.stderr?.on('data', push);
+): { promise: Promise<{ output: string; timedOut: boolean }>; child: ChildProcess } {
+  const child = spawn(bin, args, {
+    cwd: process.cwd(),
+    shell: process.platform === 'win32',
+    env: { ...process.env },
+  });
+  let output = '';
+  let timedOut = false;
+  const timer = setTimeout(() => {
+    timedOut = true;
+    child.kill();
+  }, timeoutMs);
+  const push = (d: any) => {
+    const s = d.toString();
+    output += s;
+    onProgress?.(s);
+  };
+  child.stdout?.on('data', push);
+  child.stderr?.on('data', push);
+  const promise = new Promise<{ output: string; timedOut: boolean }>((resolve, reject) => {
     child.on('error', (e) => {
       clearTimeout(timer);
       reject(e);
@@ -65,9 +65,10 @@ function runCli(
       clearTimeout(timer);
       resolve({ output: output.trim(), timedOut });
     });
-    child.stdin?.write(prompt);
-    child.stdin?.end();
   });
+  child.stdin?.write(prompt);
+  child.stdin?.end();
+  return { promise, child };
 }
 
 export function aiCliApiPlugin(): Plugin {
@@ -121,11 +122,21 @@ export function aiCliApiPlugin(): Plugin {
             res.flushHeaders();
 
             // 用 NDJSON 流式回传执行进度，前端可实时看到 AI 输出
+            let clientClosed = false;
+            const { promise, child } = runCli(bin, def.args, body.prompt!, 600_000, (chunk) => {
+              if (clientClosed) return;
+              try { res.write(JSON.stringify({ type: 'chunk', data: chunk }) + '\n'); } catch {}
+            });
+
+            // 客户端断开/刷新页面时立即杀子进程，防止 AI 继续改代码
+            req.on('close', () => {
+              clientClosed = true;
+              child.kill();
+            });
+
             res.write(JSON.stringify({ type: 'start', cli: body.cli, label: def.label }) + '\n');
             try {
-              const { output, timedOut } = await runCli(bin, def.args, body.prompt!, 600_000, (chunk) => {
-                res.write(JSON.stringify({ type: 'chunk', data: chunk }) + '\n');
-              });
+              const { output, timedOut } = await promise;
               res.write(JSON.stringify({ type: 'done', output, timedOut }) + '\n');
             } catch (e: any) {
               res.write(JSON.stringify({ type: 'error', error: e.message || 'AI CLI 执行失败' }) + '\n');

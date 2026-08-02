@@ -1,0 +1,14 @@
+﻿node.exe : {
+所在位置 C:\Users\zt27979\AppData\Roaming\npm\lark-cli.ps1:24 字符: 5
++     & "node$exe"  "$basedir/node_modules/@larksuite/cli/scripts/run.j ...
++     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: ({:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+  "ok": false,
+  "error": {
+    "type": "validation",
+    "subtype": "invalid_argument",
+    "message": "required flag(s) \"whiteboard-token\" not set"
+  }
+}

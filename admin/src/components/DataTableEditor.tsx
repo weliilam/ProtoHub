@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Button, Input, Modal, Popconfirm, Space, Spin, Table, message } from 'antd';
-import { DeleteOutlined, PlusOutlined, SaveOutlined } from '@ant-design/icons';
+import { Button, Input, Modal, Popconfirm, Space, Spin, Table, Tooltip, message } from 'antd';
+import { DeleteOutlined, PlusOutlined, SaveOutlined, SunOutlined, MoonOutlined } from '@ant-design/icons';
 import { api } from '../api';
+import { useTheme } from '../theme';
 
 type Row = Record<string, any>;
 
@@ -9,6 +10,7 @@ export default function DataTableEditor({ name }: { name: string }) {
   const [rows, setRows] = useState<Row[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const { themeMode, setThemeMode } = useTheme();
 
   useEffect(() => {
     setLoading(true);
@@ -92,12 +94,19 @@ export default function DataTableEditor({ name }: { name: string }) {
       <div className="ph-toolbar">
         <span className="ph-toolbar-title">数据表：{name}.json（{rows.length} 行）</span>
         <Space>
+          <Tooltip title={themeMode === 'dark' ? '切换到浅色模式' : '切换到深色模式'}>
+            <Button
+              size="small"
+              icon={themeMode === 'dark' ? <SunOutlined /> : <MoonOutlined />}
+              onClick={() => setThemeMode(themeMode === 'dark' ? 'light' : 'dark')}
+            />
+          </Tooltip>
           <Button size="small" icon={<PlusOutlined />} onClick={addRow}>行</Button>
           <Button size="small" icon={<PlusOutlined />} onClick={addColumn}>列</Button>
           <Button type="primary" icon={<SaveOutlined />} loading={saving} onClick={save}>保存</Button>
         </Space>
       </div>
-      <div style={{ flex: 1, overflow: 'auto', background: '#fff', padding: 16 }}>
+      <div style={{ flex: 1, overflow: 'auto', background: 'var(--ph-table-bg)', padding: 16 }}>
         <Table
           size="small"
           bordered

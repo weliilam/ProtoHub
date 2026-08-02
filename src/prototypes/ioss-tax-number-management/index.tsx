@@ -405,7 +405,6 @@ const Component = () => {
       case 'ioss_cipher': return (_v: any, record: any) => (
         <Button
           size="small"
-          icon={<CopyOutlined />}
           onClick={(e) => {
             e.stopPropagation();
             copyToClipboard(maskIoss(record.ioss_code)).then((ok) => (ok ? message.success('已复制密文') : message.error('复制失败')));

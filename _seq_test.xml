@@ -1,0 +1,4 @@
+<whiteboard type="mermaid">sequenceDiagram
+    participant 运营 as Operator
+    participant 看板 as B2B看板
+    运营-&gt;&gt;看板: 进入列表</whiteboard>

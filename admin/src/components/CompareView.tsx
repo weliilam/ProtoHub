@@ -242,8 +242,8 @@ export function CompareView({ open, snapshots, selected, prototype, scope, onClo
   const iframeARef = useRef<HTMLIFrameElement>(null);
   const iframeBRef = useRef<HTMLIFrameElement>(null);
 
-  const snapshotA = snapshots.find((s) => s.hash === selected[0])!;
-  const snapshotB = snapshots.find((s) => s.hash === selected[1])!;
+  const snapshotA = snapshots.find((s) => s.hash === selected[0]);
+  const snapshotB = snapshots.find((s) => s.hash === selected[1]);
 
   const summary = useMemo(
     () => (diffData?.diff ? parseCompareDiff(diffData.diff) : null),
@@ -407,20 +407,20 @@ export function CompareView({ open, snapshots, selected, prototype, scope, onClo
           alignItems: 'center',
           justifyContent: 'space-between',
           padding: '8px 16px',
-          borderBottom: '1px solid #f0f0f0',
-          background: '#fafafa',
+          borderBottom: '1px solid var(--ph-diff-header-border)',
+          background: 'var(--ph-diff-header-bg)',
         }}
       >
         <Space size={8}>
           <Tag color="default" style={{ fontSize: 12 }}>
             {snapshotA?.hash || '旧版本'}
           </Tag>
-          <LeftOutlined style={{ color: '#999', fontSize: 12 }} />
-          <RightOutlined style={{ color: '#1677ff', fontSize: 12 }} />
+          <LeftOutlined style={{ color: 'var(--ph-text-tertiary)', fontSize: 12 }} />
+          <RightOutlined style={{ color: 'var(--ph-git-link)', fontSize: 12 }} />
           <Tag color="blue" style={{ fontSize: 12 }}>
             {snapshotB?.hash || '新版本'}
           </Tag>
-          <span style={{ fontSize: 13, color: '#666', marginLeft: 4 }}>{prototype}</span>
+          <span style={{ fontSize: 13, color: 'var(--ph-text-secondary)', marginLeft: 4 }}>{prototype}</span>
         </Space>
         <Space>
           <Button size="small" icon={<CopyOutlined />} onClick={handleCopy} disabled={!summary}>
@@ -437,9 +437,11 @@ export function CompareView({ open, snapshots, selected, prototype, scope, onClo
       <div style={{ display: 'flex', flexDirection: 'column', height: 'calc(100% - 42px)', overflow: 'hidden' }}>
         {loading ? (
           <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <Spin tip="正在提取历史版本文件…" />
+            <Spin tip="正在提取历史版本文件…">
+              <div style={{ width: 240, padding: 24 }} />
+            </Spin>
           </div>
-        ) : !urlA ? (
+        ) : !urlA || !snapshotA || !snapshotB ? (
           <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             <Empty description="对比加载失败" />
           </div>
@@ -451,18 +453,18 @@ export function CompareView({ open, snapshots, selected, prototype, scope, onClo
                 flex: 1,
                 display: 'flex',
                 minHeight: 0,
-                borderBottom: '1px solid #f0f0f0',
+                borderBottom: '1px solid var(--ph-diff-pane-border)',
               }}
             >
               {/* 左：旧版本 */}
-              <div style={{ flex: 1, display: 'flex', flexDirection: 'column', borderRight: '2px solid #e8e8e8' }}>
+              <div style={{ flex: 1, display: 'flex', flexDirection: 'column', borderRight: '2px solid var(--ph-diff-pane-border)' }}>
                 <div
                   style={{
                     padding: '4px 12px',
                     fontSize: 12,
-                    color: '#888',
-                    background: '#fffbe6',
-                    borderBottom: '1px solid #f0f0f0',
+                    color: 'var(--ph-text-secondary)',
+                    background: 'var(--ph-anno-warn-bg)',
+                    borderBottom: '1px solid var(--ph-diff-pane-border)',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'space-between',
@@ -506,9 +508,9 @@ export function CompareView({ open, snapshots, selected, prototype, scope, onClo
                   style={{
                     padding: '4px 12px',
                     fontSize: 12,
-                    color: '#888',
-                    background: '#f6ffed',
-                    borderBottom: '1px solid #f0f0f0',
+                    color: 'var(--ph-text-secondary)',
+                    background: 'var(--ph-compare-new-pane-bg)',
+                    borderBottom: '1px solid var(--ph-diff-pane-border)',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'space-between',
@@ -538,7 +540,7 @@ export function CompareView({ open, snapshots, selected, prototype, scope, onClo
                 </div>
                 <iframe
                   ref={iframeBRef}
-                  key={`cmp-b-${refreshKey}-${snapshotB.hash}`}
+                  key={`cmp-b-${refreshKey}-${snapshotB?.hash ?? ''}`}
                   src={urlB}
                   style={{ flex: 1, width: '100%', border: 'none' }}
                   title="新版本预览"
@@ -552,8 +554,8 @@ export function CompareView({ open, snapshots, selected, prototype, scope, onClo
               <div
                 style={{
                   padding: '6px 16px',
-                  background: '#fafafa',
-                  borderTop: '2px solid #e8e8e8',
+                  background: 'var(--ph-diff-header-bg)',
+                  borderTop: '2px solid var(--ph-diff-pane-border)',
                   display: 'flex',
                   alignItems: 'center',
                   gap: 14,
@@ -561,9 +563,9 @@ export function CompareView({ open, snapshots, selected, prototype, scope, onClo
                   minHeight: 36,
                 }}
               >
-                <b style={{ color: '#1f2937' }}>改动内容</b>
-                <span style={{ color: '#6b7280' }}>
-                  {summary.files.length} 个文件 · <span style={{ color: '#16a34a' }}>+{summary.added}</span> / <span style={{ color: '#dc2626' }}>-{summary.removed}</span>
+                <b style={{ color: 'var(--ph-diff-section-title)' }}>改动内容</b>
+                <span style={{ color: 'var(--ph-diff-meta)' }}>
+                  {summary.files.length} 个文件 · <span style={{ color: 'var(--ph-diff-added-label)' }}>+{summary.added}</span> / <span style={{ color: 'var(--ph-diff-removed-label)' }}>-{summary.removed}</span>
                 </span>
                 {diffData.messages?.length > 0 && (
                   <Space size={4}>
@@ -573,16 +575,16 @@ export function CompareView({ open, snapshots, selected, prototype, scope, onClo
                   </Space>
                 )}
                 <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 16 }}>
-                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 12, color: '#888' }}>
-                    <span style={{ width: 10, height: 10, borderRadius: 2, background: 'rgba(22,163,74,0.12)', border: '2px solid #16a34a', display: 'inline-block' }} />
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 12, color: 'var(--ph-text-secondary)' }}>
+                    <span style={{ width: 10, height: 10, borderRadius: 2, background: 'var(--ph-diff-added-bg)', border: '2px solid var(--ph-diff-added-border)', display: 'inline-block' }} />
                     新增
                   </span>
-                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 12, color: '#888' }}>
-                    <span style={{ width: 10, height: 10, borderRadius: 2, background: 'rgba(245,158,11,0.12)', border: '2px solid #f59e0b', display: 'inline-block' }} />
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 12, color: 'var(--ph-text-secondary)' }}>
+                    <span style={{ width: 10, height: 10, borderRadius: 2, background: 'var(--ph-diff-modified-bg)', border: '2px solid var(--ph-diff-modified-border)', display: 'inline-block' }} />
                     修改
                   </span>
-                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 12, color: '#888' }}>
-                    <span style={{ width: 10, height: 10, borderRadius: 2, background: 'rgba(220,38,38,0.12)', border: '2px solid #dc2626', display: 'inline-block' }} />
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 12, color: 'var(--ph-text-secondary)' }}>
+                    <span style={{ width: 10, height: 10, borderRadius: 2, background: 'var(--ph-diff-removed-bg)', border: '2px solid var(--ph-diff-removed-border)', display: 'inline-block' }} />
                     删除
                   </span>
                   {!highlightReady && <Spin size="small" />}

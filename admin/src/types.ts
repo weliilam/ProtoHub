@@ -25,8 +25,13 @@ export interface Annotation {
   text: string;
   status: 'open' | 'done' | 'resolved';
   createdAt: string;
-  /** 被标注元素上的可见文字，用于 CSS 选择器漂移时的兜底匹配 */
+  /** 被标注元素上的可见文字，用于 CSS 选择器漂移时的文字兜底匹配 */
   elementText?: string;
+  /**
+   * 元素的富上下文描述，供 AI 精准定位源码。
+   * 如 "表格「操作」列（第2列，"ID"左侧，"状态"右侧）"
+   */
+  elementDescription?: string;
 }
 
 export interface GitLogItem {

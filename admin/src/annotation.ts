@@ -6,6 +6,13 @@ export interface PickedElement {
   y: number;
   /** 元素的可见文本，用于 AI 修改 DOM 后 CSS 选择器漂移时的文字兜底匹配 */
   elementText?: string;
+  /**
+   * 元素的富上下文描述，用于 AI 精准定位源码。
+   * 格式如 "表格「操作」列（第2列，左侧列「ID」，右侧列「状态」）"
+   * 或 "按钮「新建订单」"、 "表单字段「客户名称」"
+   * 为空时回退到仅使用 CSS 选择器。
+   */
+  elementDescription?: string;
 }
 
 const STYLE_ID = 'ph-annotation-style';
@@ -29,9 +36,121 @@ function ensureStyle(doc: Document) {
   doc.head.appendChild(style);
 }
 
-/** 计算元素的简洁 CSS 路径 */
-export function computeSelector(el: Element): string {
-  if (el.id) return `#${el.id}`;
+/**
+ * 分析被点击元素，生成人类可读 + AI 可精准定位的描述。
+ * 
+ * 为什么需要？CSS 选择器描述的是运行时 DOM 结构（如 th:nth-of-type(2)），
+ * 但 AI 看到的是 React JSX 源码（如 antd columns 数组），两者之间没有直接映射。
+ * 通过捕获"列标题文字 + 列位置 + 相邻列文字"，AI 可以用多个特征交叉核实定位。
+ */
+export function captureElementContext(el: Element): string {
+  const tag = el.tagName.toLowerCase();
+  const ownText = (el.textContent || '').trim().slice(0, 60);
+  const doc = el.ownerDocument;
+
+  // ── 表格列（th / td）─────────────────────────────────────
+  if (tag === 'th' || tag === 'td') {
+    const row = el.parentElement; // tr
+    if (!row) return _fallback(tag, ownText);
+
+    const cells = Array.from(row.children).filter(
+      (c) => c.tagName === 'TH' || c.tagName === 'TD',
+    );
+    const idx = cells.indexOf(el);
+    if (idx < 0) return _fallback(tag, ownText);
+
+    // 找到该列对应的表头文字（对 td 往 thead 回找）
+    let headerText = '';
+    const table = el.closest('table');
+    if (table) {
+      const theadRows = table.querySelectorAll('thead tr');
+      // 优先取最后一行的 th（多级表头场景）
+      const lastTheadRow = theadRows[theadRows.length - 1];
+      if (lastTheadRow) {
+        const headerCells = Array.from(lastTheadRow.children).filter(
+          (c) => c.tagName === 'TH' || c.tagName === 'TD',
+        );
+        if (idx < headerCells.length) {
+          headerText = (headerCells[idx].textContent || '').trim().slice(0, 30);
+        }
+      }
+      if (!headerText) {
+        // 备选：所有 th 中按序取
+        const allHeaders = table.querySelectorAll('thead th, thead td');
+        if (idx < allHeaders.length) {
+          headerText = (allHeaders[idx].textContent || '').trim().slice(0, 30);
+        }
+      }
+    }
+
+    // 相邻列文字（用于消歧：两列同名时通过邻居区分）
+    const prevCell = idx > 0 ? cells[idx - 1] : null;
+    const nextCell = idx < cells.length - 1 ? cells[idx + 1] : null;
+    const prevText = prevCell ? (prevCell.textContent || '').trim().slice(0, 20) : '';
+    const nextText = nextCell ? (nextCell.textContent || '').trim().slice(0, 20) : '';
+
+    const label = headerText || ownText || `第${idx + 1}列`;
+    let desc = tag === 'th' ? `表格「${label}」列` : `表格「${label}」列的单元格`;
+    desc += `（第${idx + 1}列`;
+    if (prevText) desc += `，"${prevText}"左侧`;
+    if (nextText) desc += `，"${nextText}"右侧`;
+    desc += '）';
+    return desc;
+  }
+
+  // ── 按钮 ─────────────────────────────────────────────────
+  const isButton =
+    tag === 'button' ||
+    (tag === 'a' && /ant-btn|btn/i.test(el.className)) ||
+    el.getAttribute('role') === 'button';
+  if (isButton) {
+    const btnText =
+      ownText ||
+      (el.querySelector('span')?.textContent || '').trim().slice(0, 30) ||
+      (el.getAttribute('aria-label') || '').slice(0, 30);
+    if (btnText) return `按钮「${btnText}」`;
+    return '按钮';
+  }
+
+  // ── 表单输入 ─────────────────────────────────────────────
+  if (tag === 'input' || tag === 'select' || tag === 'textarea') {
+    const input = el as HTMLInputElement;
+    const id = input.id;
+    let labelText = '';
+    if (id && doc) {
+      const labelEl = doc.querySelector(`label[for="${CSS.escape(id)}"]`);
+      if (labelEl) labelText = (labelEl.textContent || '').trim().slice(0, 30);
+    }
+    const desc =
+      labelText ||
+      input.placeholder ||
+      input.name ||
+      input.getAttribute('aria-label') ||
+      ownText;
+    if (desc) return `表单字段「${desc}」`;
+    return '表单输入框';
+  }
+
+  // ── 带文字的通用元素 ─────────────────────────────────────
+  if (ownText) {
+    const cls = el.className.toLowerCase();
+    if (cls.includes('title') || /h[1-6]/i.test(tag)) return `标题「${ownText}」`;
+    if (cls.includes('label') || tag === 'label') return `标签「${ownText}」`;
+    if (cls.includes('tab')) return `标签页「${ownText}」`;
+    if (cls.includes('menu') || cls.includes('nav') || tag === 'a')
+      return `菜单项「${ownText}」`;
+    return `元素「${ownText}」`;
+  }
+
+  return _fallback(tag, '');
+}
+
+function _fallback(tag: string, text: string): string {
+  if (text) return `元素「${text}」`;
+  return `元素 <${tag}>`;
+}
+
+function computeSelector(el: Element): string {
   const parts: string[] = [];
   let cur: Element | null = el;
   while (cur && cur.tagName !== 'BODY' && cur.tagName !== 'HTML' && parts.length < 6) {
@@ -111,11 +230,13 @@ export function enablePicking(doc: Document, onPick: (picked: PickedElement) => 
     const rect = el.getBoundingClientRect();
     const win = doc.defaultView!;
     const elemText = (el.textContent || '').trim().slice(0, 60) || undefined;
+    const description = captureElementContext(el);
     onPick({
       selector: computeSelector(el),
       x: Math.round(rect.left + win.scrollX),
       y: Math.round(rect.top + win.scrollY),
       elementText: elemText,
+      elementDescription: description,
     });
   };
 

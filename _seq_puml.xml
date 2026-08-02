@@ -1,0 +1,5 @@
+<whiteboard type="plantuml">@startuml
+actor 运营
+actor 看板
+运营 -> 看板: 进入列表
+@enduml</whiteboard>

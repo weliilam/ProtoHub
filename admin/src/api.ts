@@ -74,12 +74,14 @@ export const api = {
     cli: string,
     prompt: string,
     onChunk?: (chunk: string) => void,
+    signal?: AbortSignal,
   ): Promise<{ output: string; timedOut: boolean }> =>
     new Promise((resolve, reject) => {
       fetch('/api/ai/execute', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ cli, prompt }),
+        signal,
       })
         .then(async (res) => {
           if (!res.ok) {
@@ -92,22 +94,24 @@ export const api = {
           let final: { output: string; timedOut: boolean } | null = null;
           while (true) {
             const { done, value } = await reader.read();
-            if (done) break;
-            buffer += decoder.decode(value, { stream: true });
-            let idx: number;
-            while ((idx = buffer.indexOf('\n')) >= 0) {
-              const line = buffer.slice(0, idx).trim();
-              buffer = buffer.slice(idx + 1);
-              if (!line) continue;
-              try {
-                const msg = JSON.parse(line);
-                if (msg.type === 'chunk') onChunk?.(msg.data);
-                else if (msg.type === 'done') final = { output: msg.output, timedOut: msg.timedOut };
-                else if (msg.type === 'error') throw new Error(msg.error);
-              } catch (e: any) {
-                throw new Error(e.message || '解析执行结果失败');
+            if (value) {
+              buffer += decoder.decode(value, { stream: !done });
+              let idx: number;
+              while ((idx = buffer.indexOf('\n')) >= 0) {
+                const line = buffer.slice(0, idx).trim();
+                buffer = buffer.slice(idx + 1);
+                if (!line) continue;
+                try {
+                  const msg = JSON.parse(line);
+                  if (msg.type === 'chunk') onChunk?.(msg.data);
+                  else if (msg.type === 'done') final = { output: msg.output, timedOut: msg.timedOut };
+                  else if (msg.type === 'error') throw new Error(msg.error);
+                } catch (e: any) {
+                  throw new Error(e.message || '解析执行结果失败');
+                }
               }
             }
+            if (done) break;
           }
           if (!final) throw new Error('未收到执行结果');
           resolve(final);
@@ -173,4 +177,7 @@ export const api = {
     }),
   /** 汇总所有原型关联的飞书 PRD 文档（侧边栏「文档」Tab 展示用） */
   prdGetAll: () => request<{ items: { name: string; docs: PrdDoc[] }[] }>('/api/prd/all'),
+
+  // 网络信息
+  networkIps: () => request<{ ips: { name: string; address: string; family: string }[]; hostname: string }>('/api/network/ips'),
 };

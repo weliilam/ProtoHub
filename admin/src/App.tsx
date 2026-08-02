@@ -1,14 +1,20 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Badge, Button, Empty, Input, Modal, Segmented, Space, Tooltip, message } from 'antd';
+import { Badge, Button, Empty, Input, Modal, Segmented, Space, Tag, Tooltip, message } from 'antd';
 import {
   CloseOutlined,
   CommentOutlined,
+  CopyOutlined,
   DesktopOutlined,
   FileTextOutlined,
   HistoryOutlined,
+  LinkOutlined,
   MobileOutlined,
+  MoonOutlined,
+  OrderedListOutlined,
   ReloadOutlined,
   RobotOutlined,
+  SearchOutlined,
+  SunOutlined,
   TabletOutlined,
 } from '@ant-design/icons';
 import Sidebar from './components/Sidebar';
@@ -19,7 +25,10 @@ import AiCliPanel from './components/AiCliPanel';
 import DocEditor from './components/DocEditor';
 import ThemeViewer from './components/ThemeViewer';
 import DataTableEditor from './components/DataTableEditor';
+import CommandPalette, { type CommandAction } from './components/CommandPalette';
 import { api } from './api';
+import { useTheme } from './theme';
+import { useAiRunning } from './aiRunStore';
 import type { PickedElement } from './annotation';
 import type { Annotation, EntryItem, PrdDoc } from './types';
 
@@ -34,15 +43,15 @@ type UndoAction =
 /** 将同步后的功能描述文本转为排版良好的 HTML */
 function renderPrdContent(text: string): string {
   const css = `
-    .ph-prd-body h3 { font-size:15px; font-weight:700; color:#1a1a1a; margin:18px 0 8px; }
-    .ph-prd-body p { margin:0 0 10px; color:#333; }
+    .ph-prd-body h3 { font-size:15px; font-weight:700; color:var(--ph-text); margin:18px 0 8px; }
+    .ph-prd-body p { margin:0 0 10px; color:var(--ph-text-secondary); }
     .ph-prd-body ul { margin:4px 0 10px; padding-left:18px; }
-    .ph-prd-body li { margin:2px 0; color:#444; }
+    .ph-prd-body li { margin:2px 0; color:var(--ph-text-secondary); }
     .ph-prd-body table { width:100%; border-collapse:collapse; margin:8px 0 12px; font-size:13px; }
-    .ph-prd-body th { background:#f0f5ff; padding:6px 10px; border:1px solid #d6e4ff; text-align:left; font-weight:600; color:#1a1a1a; }
-    .ph-prd-body td { padding:5px 10px; border:1px solid #e8e8e8; color:#444; }
-    .ph-prd-body strong { color:#1a1a1a; }
-    .ph-prd-body em { color:#666; }
+    .ph-prd-body th { background:var(--ph-git-accent-bg); padding:6px 10px; border:1px solid var(--ph-border-light); text-align:left; font-weight:600; color:var(--ph-text); }
+    .ph-prd-body td { padding:5px 10px; border:1px solid var(--ph-border); color:var(--ph-text-secondary); }
+    .ph-prd-body strong { color:var(--ph-text); }
+    .ph-prd-body em { color:var(--ph-text-secondary); }
   `;
   const lines = text.split('\n');
   const html: string[] = [];
@@ -124,6 +133,11 @@ export default function App() {
   const [undoStack, setUndoStack] = useState<UndoAction[]>([]);
   // 找不到对应元素的失效批注（可能已被 AI 改动删除/结构变化）
   const [orphanAnnotations, setOrphanAnnotations] = useState<Annotation[]>([]);
+  const [cmdkOpen, setCmdkOpen] = useState(false);
+  const [closingPanel, setClosingPanel] = useState(false); // 面板关闭动画状态
+  const { mode, toggle: toggleTheme } = useTheme();
+  const aiRunning = useAiRunning();
+  const [ips, setIps] = useState<string[]>([]);
 
   const refreshEntries = useCallback(async () => {
     try {
@@ -136,6 +150,56 @@ export default function App() {
   useEffect(() => {
     refreshEntries();
   }, [refreshEntries]);
+
+  // 获取本机 IP
+  useEffect(() => {
+    api.networkIps().then((r) => setIps(r.ips.map((ip) => ip.address))).catch(() => {});
+  }, []);
+
+  // 首次加载 / 刷新后，自动选中第一个原型条目
+  useEffect(() => {
+    if (selected || entries.length === 0) return;
+    const first = entries.find((e) => e.type === 'prototype') || entries[0];
+    setSelected(first);
+  }, [entries]);
+
+  const handleCopyUrl = useCallback(async () => {
+    if (!selected) return;
+    const url = selected.url
+      ? new URL(selected.url, window.location.origin).href
+      : `${window.location.origin}/p/${selected.name}`;
+
+    const fallbackCopy = (text: string) => {
+      const ta = document.createElement('textarea');
+      ta.value = text;
+      ta.style.position = 'fixed';
+      ta.style.left = '-9999px';
+      ta.style.top = '-9999px';
+      document.body.appendChild(ta);
+      ta.focus();
+      ta.select();
+      try {
+        document.execCommand('copy');
+        message.success('页面地址已复制');
+      } catch {
+        message.error('复制失败');
+      } finally {
+        document.body.removeChild(ta);
+      }
+    };
+
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(url);
+        message.success('页面地址已复制');
+      } else {
+        fallbackCopy(url);
+      }
+    } catch {
+      // clipboard API 不可用时降级
+      fallbackCopy(url);
+    }
+  }, [selected]);
 
   const isPreviewable = selected?.type === 'prototype' || selected?.type === 'component';
 
@@ -151,9 +215,13 @@ export default function App() {
   }, [selected, isPreviewable]);
 
   const handleSelect = (item: EntryItem) => {
+    // 点击同一原型 = 刷新；不同原型 = 切换（URL 变更会自动触发导航，无需再 +1）
+    if (selected?.name === item.name && selected?.type === item.type) {
+      setRefreshKey((k) => k + 1);
+    }
     setSelected(item);
     setPrdDoc(null);
-    setRefreshKey((k) => k + 1);
+    setCmdkOpen(false);
   };
 
   // ── 条目管理 ──
@@ -176,7 +244,7 @@ export default function App() {
       message.success('已重命名');
       await refreshEntries();
       if (selected?.name === item.name && selected?.type === item.type) {
-        setSelected({ ...item, name: newName, title: newName, url: `/p/${newName}` });
+        setSelected({ ...item, name: newName, url: `/p/${newName}` });
       }
     } catch (e: any) {
       message.error(e.message);
@@ -203,6 +271,19 @@ export default function App() {
     setAnnotationText('');
   };
 
+  // 面板关闭（带动画），220ms 匹配 CSS slide-out 时长
+  const closeTimerRef = useRef<ReturnType<typeof setTimeout>>();
+  const closeRightPanel = useCallback(() => {
+    if (!rightPanel) return;
+    (document.activeElement as HTMLElement)?.blur();
+    setClosingPanel(true);
+    clearTimeout(closeTimerRef.current);
+    closeTimerRef.current = setTimeout(() => {
+      setRightPanel(null);
+      setClosingPanel(false);
+    }, 220);
+  }, [rightPanel]);
+
   // ESC 逐级退出：有批注弹窗 → 关弹窗；有右侧面板 → 关面板；否则 → 退出批注模式
   const pendingPickRef = useRef(pendingPick);
   pendingPickRef.current = pendingPick;
@@ -210,6 +291,8 @@ export default function App() {
   rightPanelRef.current = rightPanel;
   const annotationModeRef = useRef(annotationMode);
   annotationModeRef.current = annotationMode;
+  const closePanelRef = useRef(closeRightPanel);
+  closePanelRef.current = closeRightPanel;
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key !== 'Escape') return;
@@ -217,7 +300,7 @@ export default function App() {
       if (pendingPickRef.current) {
         setPendingPick(null);
       } else if (rightPanelRef.current) {
-        setRightPanel(null);
+        closePanelRef.current();
       } else if (annotationModeRef.current) {
         setAnnotationMode(false);
       }
@@ -236,6 +319,7 @@ export default function App() {
         y: pendingPick.y,
         text: annotationText.trim(),
         elementText: pendingPick.elementText,
+        elementDescription: pendingPick.elementDescription,
       });
       setAnnotations(await api.listAnnotations(selected.name));
       setUndoStack((s) => [...s, { kind: 'add', annotation: created }]);
@@ -317,14 +401,84 @@ export default function App() {
     return () => window.removeEventListener('keydown', onKey);
   }, [undo]);
 
+  // Ctrl/Cmd + K 打开命令面板
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        setCmdkOpen((o) => !o);
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
+
   const togglePanel = (panel: Exclude<RightPanel, null>) => {
-    setRightPanel((cur) => (cur === panel ? null : panel));
+    if (rightPanel === panel) {
+      closeRightPanel();
+    } else {
+      clearTimeout(closeTimerRef.current);
+      setClosingPanel(false);
+      setRightPanel(panel);
+    }
   };
 
   // PRD 关联管理入口在 Sidebar「文档」Tab；点击文档在右侧面板展示预览
   const [prdDoc, setPrdDoc] = useState<PrdDoc | null>(null);
 
   const openCount = annotations.filter((a) => a.status === 'open').length;
+
+  // ⌘K 命令面板的快捷操作
+  const cmdActions: CommandAction[] = [
+    {
+      id: 'toggle-theme',
+      label: mode === 'dark' ? '切换为浅色主题' : '切换为深色主题',
+      hint: '主题',
+      icon: mode === 'dark' ? <SunOutlined /> : <MoonOutlined />,
+      keywords: 'theme dark light 主题 深色 浅色',
+      run: toggleTheme,
+    },
+    {
+      id: 'open-ai',
+      label: '打开 AI 助手',
+      hint: '面板',
+      icon: <RobotOutlined />,
+      keywords: 'ai cli 助手 robot',
+      run: () => setRightPanel('ai'),
+    },
+    {
+      id: 'open-git',
+      label: '打开 Git 快照',
+      hint: '面板',
+      icon: <HistoryOutlined />,
+      keywords: 'git 快照 历史 版本',
+      run: () => setRightPanel('git'),
+    },
+    {
+      id: 'open-annotations',
+      label: '打开批注列表',
+      hint: '面板',
+      icon: <CommentOutlined />,
+      keywords: '批注 列表 annotation',
+      run: () => setRightPanel('annotation'),
+    },
+    {
+      id: 'refresh',
+      label: '刷新预览',
+      hint: '预览',
+      icon: <ReloadOutlined />,
+      keywords: '刷新 refresh reload',
+      run: () => setRefreshKey((k) => k + 1),
+    },
+    {
+      id: 'toggle-annotation-mode',
+      label: annotationMode ? '退出批注模式' : '进入批注模式',
+      hint: '批注',
+      icon: <CommentOutlined />,
+      keywords: '批注 模式 comment mode',
+      run: () => setAnnotationMode((m) => !m),
+    },
+  ];
 
   return (
     <div className="ph-layout">
@@ -337,6 +491,7 @@ export default function App() {
         onDelete={handleDelete}
         onRefresh={refreshEntries}
         onPrdPreview={setPrdDoc}
+        onOpenCmdk={() => setCmdkOpen(true)}
       />
 
       <div className="ph-main">
@@ -344,7 +499,7 @@ export default function App() {
           <div className="ph-doc-preview" style={{ padding: '24px 32px', maxWidth: 960, margin: '0 auto', height: '100%', overflowY: 'auto' }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <FileTextOutlined style={{ color: '#1677ff', fontSize: 18 }} />
+                <FileTextOutlined style={{ color: 'var(--ph-sidebar-folder-open)', fontSize: 18 }} />
                 <h2 style={{ margin: 0, fontSize: 20 }}>{prdDoc.title || '飞书 PRD 文档'}</h2>
               </div>
               <Space>
@@ -354,15 +509,15 @@ export default function App() {
                 </Button>
               </Space>
             </div>
-            <div style={{ fontSize: 12, color: '#999', marginBottom: 16, wordBreak: 'break-all' }}>
+            <div style={{ fontSize: 12, color: 'var(--ph-text-tertiary)', marginBottom: 16, wordBreak: 'break-all' }}>
               <a href={prdDoc.url} target="_blank" rel="noreferrer">{prdDoc.url}</a>
             </div>
-            <div style={{ fontSize: 12, color: '#bbb', marginBottom: 16 }}>
+            <div style={{ fontSize: 12, color: 'var(--ph-text-tertiary)', marginBottom: 16 }}>
               最后同步：{prdDoc.syncedAt ? new Date(prdDoc.syncedAt).toLocaleString('zh-CN') : '尚未同步'}
             </div>
             <div style={{
-              border: '1px solid #f0f0f0', borderRadius: 8, padding: '20px 24px',
-              background: '#fafafa', minHeight: 200, maxHeight: 'calc(100vh - 260px)', overflowY: 'auto',
+              border: '1px solid var(--ph-anno-card-border)', borderRadius: 8, padding: '20px 24px',
+              background: 'var(--ph-anno-card-bg)', minHeight: 200, maxHeight: 'calc(100vh - 260px)', overflowY: 'auto',
             }}>
               <div className="ph-prd-body" style={{ fontSize: 14, lineHeight: 1.9 }}
                 dangerouslySetInnerHTML={{
@@ -379,6 +534,18 @@ export default function App() {
           <>
             <div className="ph-toolbar">
               <span className="ph-toolbar-title">{selected.title}</span>
+              {ips.length > 0 && (
+                <Tooltip title={`本机 IP：${ips.join('、')}`}>
+                  <Tag color="blue" icon={<LinkOutlined />} style={{ marginLeft: 8, cursor: 'default' }}>
+                    {ips[0]}
+                  </Tag>
+                </Tooltip>
+              )}
+              {aiRunning && (
+                <span className="ph-ai-breath" title="AI 正在执行">
+                  AI 执行中
+                </span>
+              )}
               <Segmented
                 size="small"
                 value={device}
@@ -391,9 +558,11 @@ export default function App() {
               />
               <Space size={4}>
                 <Tooltip title="刷新预览">
-                  <Button size="small" icon={<ReloadOutlined />} onClick={() => setRefreshKey((k) => k + 1)} />
+                  <Button size="small" icon={<ReloadOutlined />} onClick={() => setRefreshKey((k) => k + 1)}>
+                    刷新
+                  </Button>
                 </Tooltip>
-                <Tooltip title={annotationMode ? '退出批注模式' : '进入批注模式，点击页面元素添加批注'}>
+                <Tooltip title={annotationMode ? '退出批注模式' : '进入批注模式'}>
                   <Button
                     size="small"
                     type={annotationMode ? 'primary' : 'default'}
@@ -403,15 +572,17 @@ export default function App() {
                     批注
                   </Button>
                 </Tooltip>
-                <Badge count={openCount} size="small">
-                  <Button
-                    size="small"
-                    type={rightPanel === 'annotation' ? 'primary' : 'default'}
-                    icon={<CommentOutlined />}
-                    onClick={() => togglePanel('annotation')}
-                  >
-                    列表
-                  </Button>
+                <Badge count={openCount} size="small" color={openCount >= 5 ? 'red' : openCount >= 1 ? 'orange' : undefined}>
+                  <Tooltip title="批注列表">
+                    <Button
+                      size="small"
+                      type={rightPanel === 'annotation' ? 'primary' : 'default'}
+                      icon={<OrderedListOutlined />}
+                      onClick={() => togglePanel('annotation')}
+                    >
+                      列表
+                    </Button>
+                  </Tooltip>
                 </Badge>
                 <Tooltip title="Git 快照">
                   <Button
@@ -423,15 +594,28 @@ export default function App() {
                     Git
                   </Button>
                 </Tooltip>
-                <Tooltip title="AI CLI">
+                <Tooltip title="AI 助手">
                   <Button
                     size="small"
                     type={rightPanel === 'ai' ? 'primary' : 'default'}
                     icon={<RobotOutlined />}
                     onClick={() => togglePanel('ai')}
                   >
-                    CLI
+                    AI
                   </Button>
+                </Tooltip>
+                <Tooltip title="复制页面链接">
+                  <Button size="small" icon={<CopyOutlined />} onClick={handleCopyUrl}>
+                    复制
+                  </Button>
+                </Tooltip>
+                <Tooltip title={mode === 'dark' ? '切换浅色主题' : '切换深色主题'}>
+                  <Button
+                    size="small"
+                    className="ph-theme-toggle"
+                    icon={mode === 'dark' ? <SunOutlined /> : <MoonOutlined />}
+                    onClick={toggleTheme}
+                  />
                 </Tooltip>
               </Space>
             </div>
@@ -447,7 +631,7 @@ export default function App() {
                 if (pendingPick) {
                   setPendingPick(null);
                 } else if (rightPanel) {
-                  setRightPanel(null);
+                  closeRightPanel();
                 } else if (annotationMode) {
                   setAnnotationMode(false);
                 }
@@ -465,39 +649,35 @@ export default function App() {
         )}
       </div>
 
-      {rightPanel && (
-        <>
-          <div
-            className="ph-right-panel-backdrop"
-            onClick={() => setRightPanel(null)}
-          />
-          <div className="ph-right-panel">
-            <Button
-              className="ph-right-panel-close"
-              size="small"
-              type="text"
-              icon={<CloseOutlined />}
-              onClick={() => setRightPanel(null)}
-            />
-          {rightPanel === 'annotation' && selected && (
-            <AnnotationPanel
-              target={selected.name}
-              annotations={annotations}
-              onToggleStatus={toggleAnnotationStatus}
-              onDelete={deleteAnnotation}
-              onApplied={() => setRefreshKey((k) => k + 1)}
-              onMarkDone={markAnnotationsDone}
-              orphanAnnotations={orphanAnnotations}
-              onDeleteOrphans={deleteOrphans}
-              canUndo={undoStack.length > 0}
-              onUndo={undo}
-            />
-          )}
-          {rightPanel === 'git' && <GitPanel selected={selected} onRestored={() => setRefreshKey((k) => k + 1)} />}
-          {rightPanel === 'ai' && <AiCliPanel selected={selected} />}
-        </div>
-        </>
+      <div
+        className={`ph-right-panel-backdrop${rightPanel ? ' active' : ''}${closingPanel ? ' closing' : ''}`}
+        onClick={closeRightPanel}
+      />
+      <div className={`ph-right-panel${rightPanel ? ' active' : ''}${closingPanel ? ' closing' : ''}`}>
+        <Button
+          className="ph-right-panel-close"
+          size="small"
+          type="text"
+          icon={<CloseOutlined />}
+          onClick={closeRightPanel}
+        />
+      {rightPanel === 'annotation' && selected && (
+        <AnnotationPanel
+          target={selected.name}
+          annotations={annotations}
+          onToggleStatus={toggleAnnotationStatus}
+          onDelete={deleteAnnotation}
+          onApplied={() => setRefreshKey((k) => k + 1)}
+          onMarkDone={markAnnotationsDone}
+          orphanAnnotations={orphanAnnotations}
+          onDeleteOrphans={deleteOrphans}
+          canUndo={undoStack.length > 0}
+          onUndo={undo}
+        />
       )}
+      {rightPanel === 'git' && <GitPanel selected={selected} onRestored={() => setRefreshKey((k) => k + 1)} />}
+      {rightPanel === 'ai' && <AiCliPanel selected={selected} />}
+    </div>
 
       <Modal
         title="添加批注"
@@ -507,7 +687,7 @@ export default function App() {
         onOk={submitAnnotation}
         onCancel={() => setPendingPick(null)}
       >
-        <p style={{ fontSize: 12, color: '#999', wordBreak: 'break-all' }}>{pendingPick?.selector}</p>
+        <p style={{ fontSize: 12, color: 'var(--ph-text-tertiary)', wordBreak: 'break-all' }}>{pendingPick?.selector}</p>
         <Input.TextArea
           rows={4}
           autoFocus
@@ -517,6 +697,13 @@ export default function App() {
         />
       </Modal>
 
+      <CommandPalette
+        open={cmdkOpen}
+        onClose={() => setCmdkOpen(false)}
+        entries={entries}
+        onSelectEntry={handleSelect}
+        actions={cmdActions}
+      />
     </div>
   );
 }

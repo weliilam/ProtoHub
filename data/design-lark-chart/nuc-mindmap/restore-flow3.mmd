@@ -1,0 +1,23 @@
+sequenceDiagram
+    participant Client as 客户
+    participant NUC as NUC
+    participant SPMS as SPMS
+    participant OPS as OPS
+
+    Client->>NUC: 填写寄件信息点击提交订单
+    activate NUC
+    NUC->>SPMS: SearchCustomerArrivalProductNew获取web_odatype
+    activate SPMS
+    SPMS-->>NUC: 返回product含web_odatype
+    deactivate SPMS
+    NUC->>OPS: VerifyRemoteAreaDetail校验偏远
+    activate OPS
+    alt 偏远地址
+        OPS-->>NUC: Item等于true
+        NUC-->>Client: 弹窗提示偏远确认后继续
+    else 非偏远地址
+        OPS-->>NUC: Item等于false
+        NUC-->>Client: 正常提交订单
+    end
+    deactivate OPS
+    deactivate NUC

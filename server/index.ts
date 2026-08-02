@@ -8,6 +8,7 @@ import { aiCliApiPlugin } from './aiCliApi';
 import { annotationApiPlugin } from './annotationApi';
 import { prdApiPlugin } from './prdApi';
 import { prototypeInfoPlugin } from './prototypeInfoApi';
+import { networkApiPlugin } from './networkApi';
 import { pagesPlugin } from './pagesPlugin';
 import { comparePlugin } from './comparePlugin';
 
@@ -23,6 +24,7 @@ export function serverPlugins(): Plugin[] {
     annotationApiPlugin(),
     prdApiPlugin(),
     prototypeInfoPlugin(),
+    networkApiPlugin(),
     pagesPlugin(), // 页面路由放最后（兜底 next）
   ];
 }

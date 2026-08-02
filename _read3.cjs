@@ -1,0 +1,11 @@
+const fs = require('fs');
+let b = fs.readFileSync('d:/newproject/_r3.txt');
+let s;
+if (b[0] === 0xFF && b[1] === 0xFE) s = b.slice(2).toString('utf16le');
+else if (b[0] === 0xEF && b[1] === 0xBB && b[2] === 0xBF) s = b.slice(3).toString('utf8');
+else s = b.toString('utf8');
+const i = s.indexOf('"ok"');
+const e = s.indexOf('"error"');
+const start = (i >= 0 ? i : (e >= 0 ? e : 0));
+console.log('has_ok=' + (i >= 0) + ' has_error=' + (e >= 0));
+console.log(s.slice(start, start + 700));

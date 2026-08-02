@@ -1,0 +1,32 @@
+<whiteboard type="mermaid">sequenceDiagram
+    participant 运营 as Operator
+    participant B2B看板 as B2BDashboard
+
+    运营-&gt;&gt;B2B看板: 进入B2B订单列表
+    B2B看板--&gt;&gt;运营: 展示订单列表与工具栏
+    运营-&gt;&gt;B2B看板: 点击更多按钮
+
+    Note over 运营,B2B看板: 导出流程
+    alt 跟进记录导出
+        B2B看板-&gt;&gt;B2B看板: 遍历MOCK_DATA生成跟进CSV
+        B2B看板--&gt;&gt;运营: 下载CSV含跟进人发货备注跟进时间
+    else 扣件原因导出
+        B2B看板-&gt;&gt;B2B看板: 遍历MOCK_DETENTION生成扣件CSV
+        B2B看板--&gt;&gt;运营: 下载CSV含扣件原因生成时间完成时间
+    end
+
+    Note over 运营,B2B看板: 拦截流程
+    运营-&gt;&gt;B2B看板: 勾选订单点击拦截
+    B2B看板--&gt;&gt;运营: 弹出拦截弹窗
+    运营-&gt;&gt;B2B看板: 选中一条拦截原因
+    alt 中文名称等于客户要求暂扣
+        B2B看板--&gt;&gt;运营: 拦截备注变红标记为必填
+        运营-&gt;&gt;B2B看板: 不填备注点击确定
+        B2B看板-&gt;&gt;运营: 校验阻止提示拦截备注为必填项
+        运营-&gt;&gt;B2B看板: 填写备注点击确定
+        B2B看板--&gt;&gt;运营: 拦截成功
+    else 其他原因
+        B2B看板--&gt;&gt;运营: 备注非必填
+        运营-&gt;&gt;B2B看板: 点击确定备注可空
+        B2B看板--&gt;&gt;运营: 拦截成功
+    end</whiteboard>

@@ -1,0 +1,24 @@
+﻿{
+  "code": 0,
+  "data": {
+    "to": "image",
+    "metadata": {
+      "width": 652,
+      "height": 315,
+      "nodeCount": 46,
+      "connectorCount": 10
+    },
+    "quality": {
+      "connectorRefs": 1,
+      "anchorDirection": 1,
+      "connectorStyle": 0,
+      "sizeConsistency": 1,
+      "bounds": 1,
+      "spacing": 0.8,
+      "fontSizeCheck": 0.3157894736842105,
+      "contrast": 1
+    },
+    "outputPath": "D:\\newproject\\data\\design-lark-chart\\swimlane_b2b\\preview.png"
+  },
+  "error": ""
+}

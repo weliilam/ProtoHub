@@ -1,7 +1,7 @@
 import type { Plugin } from 'vite';
 import fs from 'fs';
 import path from 'path';
-import { execSync } from 'child_process';
+import { spawn } from 'child_process';
 import { projectRoot, sendJson, sendError, readJsonBody, getPathname, getQuery, isValidName } from './utils';
 
 const PRD_LINK_FILE = 'prd.link';
@@ -36,13 +36,29 @@ function writeDocs(file: string, docs: PrdDoc[]): void {
   fs.writeFileSync(file, JSON.stringify(docs, null, 2), 'utf8');
 }
 
-/** 调用 lark-cli 获取飞书文档标题 + 功能描述章节（Markdown 格式） */
-function fetchDocInfo(docUrl: string): { title: string; summary: string } {
+/** 调用 lark-cli 获取飞书文档标题 + 功能描述章节（Markdown 格式）。
+ *  使用 spawn 传参数组，避免 shell 命令拼接注入风险。 */
+async function fetchDocInfo(docUrl: string): Promise<{ title: string; summary: string }> {
   try {
-    const out = execSync(
-      `lark-cli docs +fetch --doc "${docUrl}" --doc-format markdown`,
-      { timeout: 15000, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] },
-    );
+    const child = spawn('lark-cli', ['docs', '+fetch', '--doc', docUrl, '--doc-format', 'markdown'], {
+      shell: true,
+      timeout: 15000,
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
+    let stdout = '';
+    let stderr = '';
+    child.stdout.on('data', (d) => { stdout += d.toString(); });
+    child.stderr.on('data', (d) => { stderr += d.toString(); });
+
+    await new Promise<void>((resolve, reject) => {
+      child.on('error', reject);
+      child.on('close', (code) => {
+        if (code === 0) resolve();
+        else reject(new Error(stderr.trim().slice(0, 200) || `exit code ${code}`));
+      });
+    });
+
+    const out = stdout;
     const parsed = JSON.parse(out);
     if (!parsed.ok || !parsed.data?.document?.content) return { title: '', summary: '' };
     const content: string = parsed.data.document.content;
@@ -112,7 +128,7 @@ export function prdApiPlugin(): Plugin {
             const docs = readDocs(file);
             const target = docs.find((d) => d.url === docUrl);
             if (!target) return sendError(res, '未找到该链接', 404);
-            const { title, summary } = fetchDocInfo(docUrl);
+            const { title, summary } = await fetchDocInfo(docUrl);
             target.title = title || target.title;
             target.summary = summary || target.summary;
             target.syncedAt = new Date().toISOString();

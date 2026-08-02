@@ -1,0 +1,15 @@
+const fs = require('fs');
+let b = fs.readFileSync('d:/newproject/_wiki_fetch3.json');
+let s;
+if (b[0] === 0xFF && b[1] === 0xFE) s = b.slice(2).toString('utf16le');
+else if (b[0] === 0xEF && b[1] === 0xBB && b[2] === 0xBF) s = b.slice(3).toString('utf8');
+else s = b.toString('utf8');
+const j = JSON.parse(s);
+const c = j.data.document.content;
+console.log('content len', c.length);
+console.log('has <table>:', c.includes('<table'));
+console.log('has 最终效果:', c.includes('最终效果'));
+console.log('has 功能清单 h2:', /功能清单/.test(c));
+console.log('has 验收场景 text:', c.includes('验收场景'));
+console.log('--- first 300 ---');
+console.log(c.slice(0, 300));

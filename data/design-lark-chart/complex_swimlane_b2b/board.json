@@ -1,0 +1,173 @@
+{
+  "version": 2,
+  "nodes": [
+    {
+      "type": "frame",
+      "id": "root",
+      "layout": "vertical",
+      "gap": 16,
+      "padding": 24,
+      "alignItems": "stretch",
+      "width": "fit-content",
+      "height": "fit-content",
+      "children": [
+        {
+          "type": "text",
+          "id": "title",
+          "text": "B2B 订单履约 · 复杂业务泳道图",
+          "fontSize": 18,
+          "textColor": "#1f2329",
+          "width": "fit-content",
+          "height": "fit-content",
+          "fontWeight": "bold"
+        },
+        {
+          "type": "frame",
+          "id": "cx-columns",
+          "layout": "horizontal",
+          "gap": 16,
+          "padding": 0,
+          "alignItems": "stretch",
+          "fillColor": "#ffffff00",
+          "borderColor": "#ffffff00",
+          "borderWidth": 1,
+          "width": "fit-content",
+          "height": "fit-content",
+          "children": [
+            {
+              "type": "frame",
+              "id": "cx-col-1",
+              "layout": "vertical",
+              "gap": 10,
+              "padding": 12,
+              "alignItems": "center",
+              "fillColor": "#eef3ff",
+              "borderColor": "#e4e7ed",
+              "borderWidth": 1,
+              "width": "fit-content",
+              "height": "fit-content",
+              "children": [
+                { "type": "text", "id": "cx-h-1", "text": "客户 / 渠道", "fontSize": 13, "textColor": "#1f2329", "width": "fit-content", "height": "fit-content", "fontWeight": "bold" },
+                { "type": "rect", "id": "c1", "width": 138, "height": 36, "borderRadius": 4, "text": "提交 B2B 订单", "fillColor": "#ffffff", "borderColor": "#5b7fcb", "textColor": "#1f2329", "fontSize": 12 },
+                { "type": "rect", "id": "c2", "width": 138, "height": 36, "borderRadius": 4, "text": "支付与信用申请", "fillColor": "#ffffff", "borderColor": "#5b7fcb", "textColor": "#1f2329", "fontSize": 12 },
+                { "type": "diamond", "id": "c3", "width": 124, "height": 48, "borderRadius": 0, "text": "信用审核?", "fillColor": "#fdebec", "borderColor": "#c94c4c", "textColor": "#1f2329", "fontSize": 12 },
+                { "type": "rect", "id": "c5", "width": 138, "height": 36, "borderRadius": 4, "text": "进入履约流程", "fillColor": "#ffffff", "borderColor": "#4b74d8", "textColor": "#1f2329", "fontSize": 12 },
+                { "type": "rect", "id": "c4", "width": 138, "height": 36, "borderRadius": 4, "text": "订单驳回", "fillColor": "#fdebec", "borderColor": "#c94c4c", "textColor": "#c94c4c", "fontSize": 12 }
+              ]
+            },
+            { "type": "text", "id": "cx-arrow-1", "text": "→", "fontSize": 24, "textColor": "#5b7fcb", "width": "fit-content", "height": "fit-content" },
+            {
+              "type": "frame",
+              "id": "cx-col-2",
+              "layout": "vertical",
+              "gap": 10,
+              "padding": 12,
+              "alignItems": "center",
+              "fillColor": "#ffffff",
+              "borderColor": "#e4e7ed",
+              "borderWidth": 1,
+              "width": "fit-content",
+              "height": "fit-content",
+              "children": [
+                { "type": "text", "id": "cx-h-2", "text": "B2B 看板 前端", "fontSize": 13, "textColor": "#1f2329", "width": "fit-content", "height": "fit-content", "fontWeight": "bold" },
+                { "type": "rect", "id": "b1", "width": 138, "height": 36, "borderRadius": 4, "text": "展示订单与状态", "fillColor": "#ffffff", "borderColor": "#5b7fcb", "textColor": "#1f2329", "fontSize": 12 },
+                { "type": "rect", "id": "b2", "width": 138, "height": 36, "borderRadius": 4, "text": "校验 / 拦截入口", "fillColor": "#ffffff", "borderColor": "#5b7fcb", "textColor": "#1f2329", "fontSize": 12 },
+                { "type": "rect", "id": "b3", "width": 138, "height": 36, "borderRadius": 4, "text": "导出与轨迹跟踪", "fillColor": "#ffffff", "borderColor": "#5b7fcb", "textColor": "#1f2329", "fontSize": 12 },
+                { "type": "rect", "id": "b4", "width": 138, "height": 36, "borderRadius": 4, "text": "回执确认", "fillColor": "#eaf7ee", "borderColor": "#4e9d6d", "textColor": "#1f2329", "fontSize": 12 }
+              ]
+            },
+            { "type": "text", "id": "cx-arrow-2", "text": "→", "fontSize": 24, "textColor": "#5b7fcb", "width": "fit-content", "height": "fit-content" },
+            {
+              "type": "frame",
+              "id": "cx-col-3",
+              "layout": "vertical",
+              "gap": 10,
+              "padding": 12,
+              "alignItems": "center",
+              "fillColor": "#ffffff",
+              "borderColor": "#e4e7ed",
+              "borderWidth": 1,
+              "width": "fit-content",
+              "height": "fit-content",
+              "children": [
+                { "type": "text", "id": "cx-h-3", "text": "OMS 订单中心", "fontSize": 13, "textColor": "#1f2329", "width": "fit-content", "height": "fit-content", "fontWeight": "bold" },
+                { "type": "rect", "id": "o1", "width": 138, "height": 36, "borderRadius": 4, "text": "订单接入校验", "fillColor": "#ffffff", "borderColor": "#5b7fcb", "textColor": "#1f2329", "fontSize": 12 },
+                { "type": "diamond", "id": "o2", "width": 124, "height": 48, "borderRadius": 0, "text": "风控审核?", "fillColor": "#fff4d9", "borderColor": "#c8a33e", "textColor": "#1f2329", "fontSize": 12 },
+                { "type": "rect", "id": "o4", "width": 138, "height": 36, "borderRadius": 4, "text": "拆单与仓库分配", "fillColor": "#eff6ff", "borderColor": "#3b82f6", "textColor": "#1f2329", "fontSize": 12 },
+                { "type": "rect", "id": "o5", "width": 138, "height": 36, "borderRadius": 4, "text": "生成履约单", "fillColor": "#4b74d8", "borderColor": "#5b7fcb", "textColor": "#ffffff", "fontSize": 12 },
+                { "type": "rect", "id": "o3", "width": 138, "height": 36, "borderRadius": 4, "text": "拦截 / 挂起", "fillColor": "#fdebec", "borderColor": "#c94c4c", "textColor": "#c94c4c", "fontSize": 12 }
+              ]
+            },
+            { "type": "text", "id": "cx-arrow-3", "text": "→", "fontSize": 24, "textColor": "#5b7fcb", "width": "fit-content", "height": "fit-content" },
+            {
+              "type": "frame",
+              "id": "cx-col-4",
+              "layout": "vertical",
+              "gap": 10,
+              "padding": 12,
+              "alignItems": "center",
+              "fillColor": "#ffffff",
+              "borderColor": "#e4e7ed",
+              "borderWidth": 1,
+              "width": "fit-content",
+              "height": "fit-content",
+              "children": [
+                { "type": "text", "id": "cx-h-4", "text": "履约 / 仓配 WMS", "fontSize": 13, "textColor": "#1f2329", "width": "fit-content", "height": "fit-content", "fontWeight": "bold" },
+                { "type": "rect", "id": "w1", "width": 138, "height": 36, "borderRadius": 4, "text": "仓库接收", "fillColor": "#ffffff", "borderColor": "#5b7fcb", "textColor": "#1f2329", "fontSize": 12 },
+                { "type": "rect", "id": "w2", "width": 138, "height": 36, "borderRadius": 4, "text": "拣货打包", "fillColor": "#ffffff", "borderColor": "#5b7fcb", "textColor": "#1f2329", "fontSize": 12 },
+                { "type": "rect", "id": "w3", "width": 138, "height": 36, "borderRadius": 4, "text": "发货交接", "fillColor": "#ffffff", "borderColor": "#5b7fcb", "textColor": "#1f2329", "fontSize": 12 },
+                { "type": "rect", "id": "w4", "width": 138, "height": 36, "borderRadius": 4, "text": "轨迹上报", "fillColor": "#ffffff", "borderColor": "#5b7fcb", "textColor": "#1f2329", "fontSize": 12 }
+              ]
+            },
+            { "type": "text", "id": "cx-arrow-4", "text": "→", "fontSize": 24, "textColor": "#5b7fcb", "width": "fit-content", "height": "fit-content" },
+            {
+              "type": "frame",
+              "id": "cx-col-5",
+              "layout": "vertical",
+              "gap": 10,
+              "padding": 12,
+              "alignItems": "center",
+              "fillColor": "#ffffff",
+              "borderColor": "#e4e7ed",
+              "borderWidth": 1,
+              "width": "fit-content",
+              "height": "fit-content",
+              "children": [
+                { "type": "text", "id": "cx-h-5", "text": "财务计费 FCS", "fontSize": 13, "textColor": "#1f2329", "width": "fit-content", "height": "fit-content", "fontWeight": "bold" },
+                { "type": "rect", "id": "f1", "width": 138, "height": 36, "borderRadius": 4, "text": "计费核算", "fillColor": "#ffffff", "borderColor": "#5b7fcb", "textColor": "#1f2329", "fontSize": 12 },
+                { "type": "diamond", "id": "f2", "width": 124, "height": 48, "borderRadius": 0, "text": "账期类型?", "fillColor": "#eaf7ee", "borderColor": "#4e9d6d", "textColor": "#1f2329", "fontSize": 12 },
+                { "type": "rect", "id": "f3", "width": 138, "height": 36, "borderRadius": 4, "text": "现结开票", "fillColor": "#eff6ff", "borderColor": "#3b82f6", "textColor": "#1f2329", "fontSize": 12 },
+                { "type": "rect", "id": "f4", "width": 138, "height": 36, "borderRadius": 4, "text": "月结挂账", "fillColor": "#eff6ff", "borderColor": "#3b82f6", "textColor": "#1f2329", "fontSize": 12 },
+                { "type": "rect", "id": "f5", "width": 138, "height": 36, "borderRadius": 4, "text": "对账闭环", "fillColor": "#4b74d8", "borderColor": "#5b7fcb", "textColor": "#ffffff", "fontSize": 12 }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    { "type": "connector", "connector": { "from": "c1", "to": "c2", "fromAnchor": "bottom", "toAnchor": "top", "lineShape": "straight", "lineColor": "#b8bec8", "lineWidth": 1, "endArrow": "arrow" } },
+    { "type": "connector", "connector": { "from": "c2", "to": "c3", "fromAnchor": "bottom", "toAnchor": "top", "lineShape": "straight", "lineColor": "#b8bec8", "lineWidth": 1, "endArrow": "arrow" } },
+    { "type": "connector", "connector": { "from": "c3", "to": "c5", "fromAnchor": "bottom", "toAnchor": "top", "lineShape": "straight", "lineColor": "#b8bec8", "lineWidth": 1, "endArrow": "arrow", "label": "是" } },
+    { "type": "connector", "connector": { "from": "c3", "to": "c4", "fromAnchor": "left", "toAnchor": "top", "lineShape": "rightAngle", "lineColor": "#c94c4c", "lineWidth": 1, "endArrow": "arrow", "label": "否" } },
+    { "type": "connector", "connector": { "from": "b1", "to": "b2", "fromAnchor": "bottom", "toAnchor": "top", "lineShape": "straight", "lineColor": "#b8bec8", "lineWidth": 1, "endArrow": "arrow" } },
+    { "type": "connector", "connector": { "from": "b2", "to": "b3", "fromAnchor": "bottom", "toAnchor": "top", "lineShape": "straight", "lineColor": "#b8bec8", "lineWidth": 1, "endArrow": "arrow" } },
+    { "type": "connector", "connector": { "from": "b3", "to": "b4", "fromAnchor": "bottom", "toAnchor": "top", "lineShape": "straight", "lineColor": "#b8bec8", "lineWidth": 1, "endArrow": "arrow" } },
+    { "type": "connector", "connector": { "from": "o1", "to": "o2", "fromAnchor": "bottom", "toAnchor": "top", "lineShape": "straight", "lineColor": "#b8bec8", "lineWidth": 1, "endArrow": "arrow" } },
+    { "type": "connector", "connector": { "from": "o2", "to": "o4", "fromAnchor": "bottom", "toAnchor": "top", "lineShape": "straight", "lineColor": "#b8bec8", "lineWidth": 1, "endArrow": "arrow", "label": "通过" } },
+    { "type": "connector", "connector": { "from": "o2", "to": "o3", "fromAnchor": "left", "toAnchor": "top", "lineShape": "rightAngle", "lineColor": "#c94c4c", "lineWidth": 1, "endArrow": "arrow", "label": "不通过" } },
+    { "type": "connector", "connector": { "from": "o4", "to": "o5", "fromAnchor": "bottom", "toAnchor": "top", "lineShape": "straight", "lineColor": "#b8bec8", "lineWidth": 1, "endArrow": "arrow" } },
+    { "type": "connector", "connector": { "from": "w1", "to": "w2", "fromAnchor": "bottom", "toAnchor": "top", "lineShape": "straight", "lineColor": "#b8bec8", "lineWidth": 1, "endArrow": "arrow" } },
+    { "type": "connector", "connector": { "from": "w2", "to": "w3", "fromAnchor": "bottom", "toAnchor": "top", "lineShape": "straight", "lineColor": "#b8bec8", "lineWidth": 1, "endArrow": "arrow" } },
+    { "type": "connector", "connector": { "from": "w3", "to": "w4", "fromAnchor": "bottom", "toAnchor": "top", "lineShape": "straight", "lineColor": "#b8bec8", "lineWidth": 1, "endArrow": "arrow" } },
+    { "type": "connector", "connector": { "from": "f1", "to": "f2", "fromAnchor": "bottom", "toAnchor": "top", "lineShape": "straight", "lineColor": "#b8bec8", "lineWidth": 1, "endArrow": "arrow" } },
+    { "type": "connector", "connector": { "from": "f2", "to": "f3", "fromAnchor": "bottom", "toAnchor": "top", "lineShape": "straight", "lineColor": "#b8bec8", "lineWidth": 1, "endArrow": "arrow", "label": "现结" } },
+    { "type": "connector", "connector": { "from": "f2", "to": "f4", "fromAnchor": "left", "toAnchor": "top", "lineShape": "rightAngle", "lineColor": "#4e9d6d", "lineWidth": 1, "endArrow": "arrow", "label": "月结" } },
+    { "type": "connector", "connector": { "from": "f3", "to": "f5", "fromAnchor": "bottom", "toAnchor": "top", "lineShape": "straight", "lineColor": "#b8bec8", "lineWidth": 1, "endArrow": "arrow" } },
+    { "type": "connector", "connector": { "from": "f4", "to": "f5", "fromAnchor": "bottom", "toAnchor": "top", "lineShape": "straight", "lineColor": "#b8bec8", "lineWidth": 1, "endArrow": "arrow" } },
+    { "type": "connector", "connector": { "from": "o5", "to": "w1", "fromAnchor": "bottom", "toAnchor": "top", "lineShape": "rightAngle", "lineColor": "#5b7fcb", "lineWidth": 1.5, "endArrow": "arrow", "label": "履约单下发" } },
+    { "type": "connector", "connector": { "from": "o5", "to": "f1", "fromAnchor": "bottom", "toAnchor": "top", "lineShape": "rightAngle", "lineColor": "#5b7fcb", "lineWidth": 1.5, "endArrow": "arrow", "label": "计费触发" } },
+    { "type": "connector", "connector": { "from": "b2", "to": "o3", "fromAnchor": "bottom", "toAnchor": "top", "lineShape": "rightAngle", "lineColor": "#5b7fcb", "lineWidth": 1, "endArrow": "arrow", "label": "拦截下发" } },
+    { "type": "connector", "connector": { "from": "w4", "to": "b4", "fromAnchor": "bottom", "toAnchor": "top", "lineShape": "rightAngle", "lineColor": "#5b7fcb", "lineWidth": 1, "endArrow": "arrow", "label": "轨迹回传" } }
+  ],
+  "_scenario": "B2B 订单履约端到端复杂泳道"
+}

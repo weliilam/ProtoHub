@@ -317,7 +317,7 @@ export function entriesApiPlugin(): Plugin {
             const body = await readJsonBody<{ type?: string; name?: string; newName?: string }>(req);
             const dir = body.type ? typeDir(body.type) : null;
             if (!dir) return sendError(res, '类型不支持');
-            if (!body.name || !body.newName || !isValidName(body.newName)) return sendError(res, '名称不合法');
+            if (!body.name || !isValidName(body.name) || !body.newName || !isValidName(body.newName)) return sendError(res, '名称不合法（字母/数字/中文/中划线/下划线）');
             const from = path.join(dir, body.name);
             const to = path.join(dir, body.newName);
             if (!fs.existsSync(from)) return sendError(res, '条目不存在', 404);
@@ -349,7 +349,7 @@ export function entriesApiPlugin(): Plugin {
             const name = getQuery(req).get('name') || '';
             const dir = typeDir(type);
             if (!dir) return sendError(res, '类型不支持');
-            if (!name) return sendError(res, '缺少名称');
+            if (!name || !isValidName(name)) return sendError(res, '名称不合法（字母/数字/中文/中划线/下划线）');
             const target = path.join(dir, name);
             if (fs.existsSync(target)) {
               fs.rmSync(target, { recursive: true, force: true });

@@ -11,6 +11,8 @@ export interface Annotation {
   x: number; // 相对元素的位置信息（用于回显标记）
   y: number;
   text: string;
+  elementText?: string; // 目标元素的文本内容（用于漂移兜底匹配）
+  elementDescription?: string; // 富上下文描述（供 AI 精准定位源码）
   status: 'open' | 'done' | 'resolved';
   createdAt: string;
 }
@@ -69,6 +71,8 @@ export function annotationApiPlugin(): Plugin {
               x: Number(body.x) || 0,
               y: Number(body.y) || 0,
               text: body.text.trim(),
+              elementText: (body as any).elementText?.trim(),
+              elementDescription: (body as any).elementDescription?.trim(),
               status: body.status || 'open',
               createdAt: body.createdAt || new Date().toISOString(),
             };

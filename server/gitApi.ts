@@ -97,6 +97,8 @@ export function gitApiPlugin(): Plugin {
             if (!body.hash || !/^[0-9a-f]{6,40}$/i.test(body.hash)) return sendError(res, '快照标识不合法');
             const scope = resolveScope(body.scope ?? null);
             await git(['checkout', body.hash, '--', scope || '.']);
+            // 清理快照之后新建的未跟踪文件，确保完整回滚（否则 AI 新建的文件会残留）
+            await git(['clean', '-fd', '--', scope || '.']);
             return sendJson(res, { success: true });
           }
 
