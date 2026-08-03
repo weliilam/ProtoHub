@@ -151,9 +151,24 @@ export default function App() {
     refreshEntries();
   }, [refreshEntries]);
 
-  // 获取本机 IP
+  // 获取本机 IP（优先走接口；失败则用 WebRTC 兜底探测）
   useEffect(() => {
-    api.networkIps().then((r) => setIps(r.ips.map((ip) => ip.address))).catch(() => {});
+    api
+      .networkIps()
+      .then((r) => setIps(r.ips.map((ip) => ip.address)))
+      .catch(() => {
+        const pc = new RTCPeerConnection({ iceServers: [] });
+        pc.createDataChannel('');
+        pc.createOffer().then((offer) => pc.setLocalDescription(offer));
+        pc.onicecandidate = (e) => {
+          if (!e.candidate) return;
+          const m = e.candidate.candidate.match(/(\d{1,3}\.){3}\d{1,3}/);
+          if (m && !m[1].startsWith('127.')) {
+            setIps((prev) => (prev.includes(m[1]) ? prev : [...prev, m[1]]));
+            pc.close();
+          }
+        };
+      });
   }, []);
 
   // 首次加载 / 刷新后，自动选中第一个原型条目
@@ -165,9 +180,16 @@ export default function App() {
 
   const handleCopyUrl = useCallback(async () => {
     if (!selected) return;
+    // 自动识别本机 IP：localhost 访问时替换为局域网 IP
+    let origin = window.location.origin;
+    const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+    if (isLocal && ips.length > 0) {
+      const port = window.location.port ? `:${window.location.port}` : '';
+      origin = `${window.location.protocol}//${ips[0]}${port}`;
+    }
     const url = selected.url
-      ? new URL(selected.url, window.location.origin).href
-      : `${window.location.origin}/p/${selected.name}`;
+      ? new URL(selected.url, origin).href
+      : `${origin}/p/${selected.name}`;
 
     const fallbackCopy = (text: string) => {
       const ta = document.createElement('textarea');
@@ -199,7 +221,7 @@ export default function App() {
       // clipboard API 不可用时降级
       fallbackCopy(url);
     }
-  }, [selected]);
+  }, [selected, ips]);
 
   const isPreviewable = selected?.type === 'prototype' || selected?.type === 'component';
 

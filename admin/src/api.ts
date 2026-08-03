@@ -179,5 +179,9 @@ export const api = {
   prdGetAll: () => request<{ items: { name: string; docs: PrdDoc[] }[] }>('/api/prd/all'),
 
   // 网络信息
-  networkIps: () => request<{ ips: { name: string; address: string; family: string }[]; hostname: string }>('/api/network/ips'),
+  networkIps: async () => {
+    const res = await fetch('/api/network/ips');
+    const json = await res.json();
+    return json as { ips: { name: string; address: string; family: string }[]; hostname: string };
+  },
 };
