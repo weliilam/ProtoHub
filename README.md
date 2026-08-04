@@ -1,4 +1,4 @@
-# Proto Hub — 本地 AI 原型工作台
+# Hatch — 本地 AI 原型工作台
 
 > 基于 Vite + React / Vue + Ant Design 的本地原型工作台。内置**原型预览、批注、Git 快照、AI CLI、分组管理、飞书 PRD 同步**，帮助产品 / 设计 / 开发在同一处快速搭建、评审与管理前端原型。
 
@@ -49,7 +49,7 @@ git clone https://github.com/weliilam/ProtoHub.git
 cd ProtoHub
 ```
 
-> **说明**：仓库仅包含 Proto Hub 框架代码，原型（prototype）与文档（doc）已在版本控制中排除，克隆后需自行在工作台内新建原型 / 文档。
+> **说明**：仓库仅包含 Hatch 框架代码，原型（prototype）与文档（doc）已在版本控制中排除，克隆后需自行在工作台内新建原型 / 文档。
 
 ### 安装与启动
 
@@ -144,7 +144,7 @@ src/prototypes/<name>/
 import { Button } from 'antd';
 
 export default function App() {
-  return <Button type="primary">Hello Proto Hub</Button>;
+  return <Button type="primary">Hello Hatch</Button>;
 }
 ```
 
@@ -287,7 +287,7 @@ AI CLI 功能依赖用户本机已安装的 AI 命令行工具，**不在本项�
 
 ### 验证
 
-启动 Proto Hub 后，打开右侧「AI CLI」面板，绿色圆点表示对应的 CLI 可用。
+启动 Hatch 后，打开右侧「AI CLI」面板，绿色圆点表示对应的 CLI 可用。
 
 ---
 

@@ -39,7 +39,7 @@ function sendForbidden(res: ServerResponse) {
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>无法访问 - Proto Hub</title>
+  <title>无法访问 - Hatch</title>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif; background: #f5f6f8; color: #1f2937; display: flex; align-items: center; justify-content: center; min-height: 100vh; }
@@ -105,7 +105,7 @@ function buildVirtualHtml(name: string, entry: string, engine: string, ui: strin
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-  <title>${name} - Proto Hub</title>
+  <title>${name} - Hatch</title>
   <style>html,body,#root{margin:0;padding:0;min-height:100vh;background:#f5f5f5;}</style>
 </head>
 <body>

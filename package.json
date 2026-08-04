@@ -2,7 +2,7 @@
   "name": "proto-hub",
   "version": "0.1.0",
   "private": true,
-  "description": "Proto Hub - 本地 AI 原型工作台（原型管理 / 预览 / 批注 / Git 快照 / AI CLI）",
+  "description": "Hatch - 本地 AI 原型工作台（原型管理 / 预览 / 批注 / Git 快照 / AI CLI）",
   "type": "module",
   "scripts": {
     "dev": "vite",
