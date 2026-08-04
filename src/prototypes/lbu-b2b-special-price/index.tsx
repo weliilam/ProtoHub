@@ -6,8 +6,6 @@
  * - spec.md / api.md（同目录文档）
  */
 
-import './style.css';
-
 import React, { useState, useCallback } from 'react';
 
 import {
@@ -20,7 +18,11 @@ import {
   Button,
   Space,
   Divider,
+  Row,
+  Col,
+  Flex,
   Typography,
+  Segmented,
   Alert,
   Modal,
   message
@@ -113,100 +115,133 @@ const Component = function LbuB2bSpecialPrice() {
   }, [applyNo, emitEvent]);
 
   return (
-    <Layout className="lbsp-page">
-      <Card className="lbsp-card">
-        <div className="lbsp-title-row" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <Title level={4} className="lbsp-title" style={{ margin: 0 }}>OA申请</Title>
+    <Layout style={{ minHeight: '100vh', padding: 24, background: '#f5f7fa' }}>
+      <Card style={{ maxWidth: 1200, margin: '0 auto', width: '100%' }}>
+        <Flex justify="space-between" align="center" style={{ marginBottom: 24 }}>
+          <Title level={4} style={{ margin: 0 }}>OA申请</Title>
           <Space>
             <Text type="secondary">允许协同</Text>
-            <Form.Item name="collab" valuePropName="value" initialValue={true} noStyle>
-              <Radio.Group className="lbsp-collab-toggle" options={[{ label: '开', value: true }, { label: '关', value: false }]} optionType="button" />
+            <Form.Item name="collab" initialValue={true} noStyle>
+              <Segmented options={[{ label: '开', value: true }, { label: '关', value: false }]} />
             </Form.Item>
           </Space>
-        </div>
+        </Flex>
 
-        <Form form={form} layout="vertical" className="lbsp-form" requiredMark>
+        <Form form={form} layout="vertical" requiredMark>
           {/* 基本信息 */}
-          <div className="lbsp-section-title">基本信息</div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '0 24px' }}>
-            <Form.Item label="申请人" name="applicant" rules={[{ required: true }]}>
-              <Input placeholder="请输入申请人" />
-            </Form.Item>
-            <Form.Item label="工号" name="employeeNo" rules={[{ required: true }]}>
-              <Select placeholder="输入工号搜索" showSearch optionFilterProp="label" options={EMPLOYEE_OPTIONS} />
-            </Form.Item>
-            <Form.Item label="申请日期" name="applyDate">
-              <Input placeholder="YYYY-MM-DD（默认当天）" />
-            </Form.Item>
-            <Form.Item label="申请单号" name="applyNo">
-              <Input placeholder="提交后自动生成" disabled value={applyNo || undefined} />
-            </Form.Item>
-            <Form.Item label="部门" name="dept" rules={[{ required: true }]}>
-              <Input placeholder="请输入部门" />
-            </Form.Item>
-          </div>
+          <Divider orientation="left">基本信息</Divider>
+          <Row gutter={[24, 0]}>
+            <Col span={12}>
+              <Form.Item label="申请人" name="applicant" rules={[{ required: true }]}>
+                <Input placeholder="请输入申请人" />
+              </Form.Item>
+            </Col>
+            <Col span={12}>
+              <Form.Item label="工号" name="employeeNo" rules={[{ required: true }]}>
+                <Select placeholder="输入工号搜索" showSearch optionFilterProp="label" options={EMPLOYEE_OPTIONS} />
+              </Form.Item>
+            </Col>
+            <Col span={12}>
+              <Form.Item label="申请日期" name="applyDate">
+                <Input placeholder="YYYY-MM-DD（默认当天）" />
+              </Form.Item>
+            </Col>
+            <Col span={12}>
+              <Form.Item label="申请单号" name="applyNo">
+                <Input placeholder="提交后自动生成" disabled value={applyNo || undefined} />
+              </Form.Item>
+            </Col>
+            <Col span={12}>
+              <Form.Item label="部门" name="dept" rules={[{ required: true }]}>
+                <Input placeholder="请输入部门" />
+              </Form.Item>
+            </Col>
+          </Row>
 
           {/* 一、客户信息 */}
-          <div className="lbsp-section-title">一、客户信息</div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '0 24px' }}>
-            <Form.Item label="客户代码" name="customerCode" rules={[{ required: true }]}>
-              <Input placeholder="请输入客户代码" />
-            </Form.Item>
-            <Form.Item label="销售是否可以填写计费信息项" name="salesFillBilling" rules={[{ required: true }]}>
-              <Radio.Group options={[{ label: '是', value: 'yes' }, { label: '否', value: 'no' }]} />
-            </Form.Item>
-          </div>
+          <Divider orientation="left">一、客户信息</Divider>
+          <Row gutter={[24, 0]}>
+            <Col span={12}>
+              <Form.Item label="客户代码" name="customerCode" rules={[{ required: true }]}>
+                <Input placeholder="请输入客户代码" />
+              </Form.Item>
+            </Col>
+            <Col span={12}>
+              <Form.Item label="销售是否可以填写计费信息项" name="salesFillBilling" rules={[{ required: true }]}>
+                <Radio.Group options={[{ label: '是', value: 'yes' }, { label: '否', value: 'no' }]} />
+              </Form.Item>
+            </Col>
+          </Row>
           <Form.Item noStyle shouldUpdate={(p, c) => p.salesFillBilling !== c.salesFillBilling}>
             {({ getFieldValue }) =>
               getFieldValue('salesFillBilling') === 'no' ? (
-                <Alert type="warning" showIcon className="lbsp-tips-block"
+                <Alert type="warning" showIcon style={{ marginBottom: 16 }}
                   message="当前选择「否」，计费信息项由报价部门填写，销售不可编辑。" />
               ) : null
             }
           </Form.Item>
 
           {/* 二、报价信息 */}
-          <div className="lbsp-section-title">二、报价信息</div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0 24px' }}>
-            <Form.Item label="国家" name="country" rules={[{ required: true }]}>
-              <Select options={COUNTRY_OPTIONS} placeholder="请选择" showSearch />
-            </Form.Item>
-            <Form.Item label="产品目录" name="productCatalog" rules={[{ required: true }]}>
-              <Select options={PRODUCT_OPTIONS} placeholder="请选择" />
-            </Form.Item>
-            <Form.Item label="包装规格" name="packageSpec" rules={[{ required: true }]}>
-              <Select options={PACKAGE_OPTIONS} placeholder="请选择" />
-            </Form.Item>
-            <Form.Item label="件数" name="pieceCount" rules={[{ required: true }]}>
-              <Input placeholder="请输入件数" />
-            </Form.Item>
-            <Form.Item label="品名" name="productName" rules={[{ required: true }]}>
-              <Input placeholder="请输入品名" />
-            </Form.Item>
-            <Form.Item label="HS CODE" name="hsCode" rules={[{ required: true }]}>
-              <Input placeholder="请输入 HS CODE" />
-            </Form.Item>
-            <Form.Item label="货物类型" name="cargoType" rules={[{ required: true }]}>
-              <Select options={CARGO_OPTIONS} placeholder="请选择" />
-            </Form.Item>
-            <Form.Item label="报关方式" name="declareType" rules={[{ required: true }]}>
-              <Select options={DECLARE_OPTIONS} placeholder="请选择" />
-            </Form.Item>
-            <Form.Item label="贸易方式" name="tradeType" rules={[{ required: true }]}>
-              <Select options={TRADE_OPTIONS} placeholder="请选择" />
-            </Form.Item>
-            <Form.Item label="是否含锂电池" name="hasBattery" rules={[{ required: true }]}>
-              <Radio.Group options={[{ label: '是', value: 'yes' }, { label: '否', value: 'no' }]} />
-            </Form.Item>
-          </div>
+          <Divider orientation="left">二、报价信息</Divider>
+          <Row gutter={[24, 0]}>
+            <Col span={8}>
+              <Form.Item label="国家" name="country" rules={[{ required: true }]}>
+                <Select options={COUNTRY_OPTIONS} placeholder="请选择" showSearch />
+              </Form.Item>
+            </Col>
+            <Col span={8}>
+              <Form.Item label="产品目录" name="productCatalog" rules={[{ required: true }]}>
+                <Select options={PRODUCT_OPTIONS} placeholder="请选择" />
+              </Form.Item>
+            </Col>
+            <Col span={8}>
+              <Form.Item label="包装规格" name="packageSpec" rules={[{ required: true }]}>
+                <Select options={PACKAGE_OPTIONS} placeholder="请选择" />
+              </Form.Item>
+            </Col>
+            <Col span={8}>
+              <Form.Item label="件数" name="pieceCount" rules={[{ required: true }]}>
+                <Input placeholder="请输入件数" />
+              </Form.Item>
+            </Col>
+            <Col span={8}>
+              <Form.Item label="品名" name="productName" rules={[{ required: true }]}>
+                <Input placeholder="请输入品名" />
+              </Form.Item>
+            </Col>
+            <Col span={8}>
+              <Form.Item label="HS CODE" name="hsCode" rules={[{ required: true }]}>
+                <Input placeholder="请输入 HS CODE" />
+              </Form.Item>
+            </Col>
+            <Col span={8}>
+              <Form.Item label="货物类型" name="cargoType" rules={[{ required: true }]}>
+                <Select options={CARGO_OPTIONS} placeholder="请选择" />
+              </Form.Item>
+            </Col>
+            <Col span={8}>
+              <Form.Item label="报关方式" name="declareType" rules={[{ required: true }]}>
+                <Select options={DECLARE_OPTIONS} placeholder="请选择" />
+              </Form.Item>
+            </Col>
+            <Col span={8}>
+              <Form.Item label="贸易方式" name="tradeType" rules={[{ required: true }]}>
+                <Select options={TRADE_OPTIONS} placeholder="请选择" />
+              </Form.Item>
+            </Col>
+            <Col span={8}>
+              <Form.Item label="是否含锂电池" name="hasBattery" rules={[{ required: true }]}>
+                <Radio.Group options={[{ label: '是', value: 'yes' }, { label: '否', value: 'no' }]} />
+              </Form.Item>
+            </Col>
+          </Row>
 
-          <div className="lbsp-sub-title">单箱尺寸</div>
-          <div className="lbsp-sub-table">
+          <Card size="small" title="单箱尺寸" style={{ marginBottom: 16 }}>
             <Form.List name="boxSizes">
               {(fields, { add, remove, move }) => (
                 <>
                   {fields.map((field, index) => (
-                    <Space key={field.key} align="baseline" style={{ display: 'flex', marginBottom: 8 }} wrap>
+                    <Flex key={field.key} align="baseline" gap={8} wrap style={{ marginBottom: 8 }}>
                       <Form.Item {...field} name={[field.name, 'length']} rules={[{ required: true, message: '长' }]} noStyle>
                         <Input placeholder="长(cm)" style={{ width: 120 }} />
                       </Form.Item>
@@ -218,22 +253,21 @@ const Component = function LbuB2bSpecialPrice() {
                       </Form.Item>
                       <Button type="text" icon={<ArrowUpOutlined />} onClick={() => move(index, index - 1)} disabled={index === 0} />
                       <Button type="text" icon={<ArrowDownOutlined />} onClick={() => move(index, index + 1)} disabled={index === fields.length - 1} />
-                      <MinusCircleOutlined onClick={() => remove(field.name)} style={{ color: '#dc2626' }} />
-                    </Space>
+                      <Button type="text" danger icon={<MinusCircleOutlined />} onClick={() => remove(field.name)} />
+                    </Flex>
                   ))}
                   <Button type="dashed" onClick={() => add()} block icon={<PlusOutlined />}>添加单箱尺寸</Button>
                 </>
               )}
             </Form.List>
-          </div>
+          </Card>
 
-          <div className="lbsp-sub-title">发货地址</div>
-          <div className="lbsp-sub-table">
+          <Card size="small" title="发货地址" style={{ marginBottom: 16 }}>
             <Form.List name="shipAddresses">
               {(fields, { add, remove, move }) => (
                 <>
                   {fields.map((field, index) => (
-                    <Space key={field.key} align="baseline" style={{ display: 'flex', marginBottom: 8 }} wrap>
+                    <Flex key={field.key} align="baseline" gap={8} wrap style={{ marginBottom: 8 }}>
                       <Form.Item {...field} name={[field.name, 'country']} rules={[{ required: true, message: '国家/地区' }]} noStyle>
                         <Input placeholder="国家/地区" style={{ width: 140 }} />
                       </Form.Item>
@@ -242,24 +276,23 @@ const Component = function LbuB2bSpecialPrice() {
                       </Form.Item>
                       <Button type="text" icon={<ArrowUpOutlined />} onClick={() => move(index, index - 1)} disabled={index === 0} />
                       <Button type="text" icon={<ArrowDownOutlined />} onClick={() => move(index, index + 1)} disabled={index === fields.length - 1} />
-                      <MinusCircleOutlined onClick={() => remove(field.name)} style={{ color: '#dc2626' }} />
-                    </Space>
+                      <Button type="text" danger icon={<MinusCircleOutlined />} onClick={() => remove(field.name)} />
+                    </Flex>
                   ))}
                   <Button type="dashed" onClick={() => add()} block icon={<PlusOutlined />}>添加发货地址</Button>
                 </>
               )}
             </Form.List>
-          </div>
+          </Card>
 
           {/* 三、计费信息项 */}
-          <div className="lbsp-section-title">三、计费信息项</div>
-          <div className="lbsp-sub-title">单票改价信息</div>
-          <div className="lbsp-sub-table lbsp-price-table">
+          <Divider orientation="left">三、计费信息项</Divider>
+          <Card size="small" title="单票改价信息" style={{ marginBottom: 16 }}>
             <Form.List name="priceChanges">
               {(fields, { add, remove }) => (
                 <>
                   {fields.map((field) => (
-                    <Space key={field.key} align="baseline" style={{ display: 'flex', marginBottom: 8 }} wrap>
+                    <Flex key={field.key} align="baseline" gap={8} wrap style={{ marginBottom: 8 }}>
                       <Form.Item {...field} name={[field.name, 'feeItem']} rules={[{ required: true, message: '费用项' }]} noStyle>
                         <Input placeholder="费用项" style={{ width: 160 }} />
                       </Form.Item>
@@ -272,44 +305,56 @@ const Component = function LbuB2bSpecialPrice() {
                       <Form.Item {...field} name={[field.name, 'currency']} rules={[{ required: true, message: '币种' }]} noStyle>
                         <Select options={CURRENCY_OPTIONS} placeholder="币种" style={{ width: 100 }} />
                       </Form.Item>
-                      <MinusCircleOutlined onClick={() => remove(field.name)} style={{ color: '#dc2626' }} />
-                    </Space>
+                      <Button type="text" danger icon={<MinusCircleOutlined />} onClick={() => remove(field.name)} />
+                    </Flex>
                   ))}
                   <Button type="dashed" onClick={() => add()} block icon={<PlusOutlined />}>添加改价信息</Button>
                 </>
               )}
             </Form.List>
-          </div>
+          </Card>
 
-          <Form.Item label="是否存在附加费减免" name="hasDiscount" rules={[{ required: true }]}>
-            <Radio.Group options={[{ label: '是', value: 'yes' }, { label: '否', value: 'no' }]} />
-          </Form.Item>
-          <Form.Item noStyle shouldUpdate={(p, c) => p.hasDiscount !== c.hasDiscount}>
-            {({ getFieldValue }) =>
-              getFieldValue('hasDiscount') === 'yes' ? (
-                <Form.Item label="扣件减免" name="discountDetail" rules={[{ required: true }]}>
-                  <Input.TextArea rows={2} placeholder="请填写扣件减免说明" />
-                </Form.Item>
-              ) : null
-            }
-          </Form.Item>
+          <Row gutter={[24, 0]}>
+            <Col span={12}>
+              <Form.Item label="是否存在附加费减免" name="hasDiscount" rules={[{ required: true }]}>
+                <Radio.Group options={[{ label: '是', value: 'yes' }, { label: '否', value: 'no' }]} />
+              </Form.Item>
+            </Col>
+            <Col span={12}>
+              <Form.Item noStyle shouldUpdate={(p, c) => p.hasDiscount !== c.hasDiscount}>
+                {({ getFieldValue }) =>
+                  getFieldValue('hasDiscount') === 'yes' ? (
+                    <Form.Item label="扣件减免" name="discountDetail" rules={[{ required: true }]}>
+                      <Input.TextArea rows={2} placeholder="请填写扣件减免说明" />
+                    </Form.Item>
+                  ) : null
+                }
+              </Form.Item>
+            </Col>
+          </Row>
           <Form.Item label="价格有效期" name="priceValid" rules={[{ required: true }]}>
             <Input placeholder="如：2025-01-01 至 2025-03-31" />
           </Form.Item>
 
           {/* 流程处理 */}
-          <div className="lbsp-section-title">流程处理</div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0 24px' }}>
-            <Form.Item label="提交身份" name="submitRole" rules={[{ required: true }]}>
-              <Select placeholder="请选择" options={[{ label: '销售', value: 'sales' }, { label: '报价', value: 'quote' }]} />
-            </Form.Item>
-            <Form.Item label="回签方向" name="signDirection" rules={[{ required: true }]}>
-              <Select placeholder="请选择" options={[{ label: '给客户', value: 'toCustomer' }, { label: '给内部', value: 'toInner' }]} />
-            </Form.Item>
-            <Form.Item label="紧急程度" name="urgency" rules={[{ required: true }]}>
-              <Radio.Group options={[{ label: '普通', value: 'normal' }, { label: '紧急', value: 'urgent' }]} />
-            </Form.Item>
-          </div>
+          <Divider orientation="left">流程处理</Divider>
+          <Row gutter={[24, 0]}>
+            <Col span={8}>
+              <Form.Item label="提交身份" name="submitRole" rules={[{ required: true }]}>
+                <Select placeholder="请选择" options={[{ label: '销售', value: 'sales' }, { label: '报价', value: 'quote' }]} />
+              </Form.Item>
+            </Col>
+            <Col span={8}>
+              <Form.Item label="回签方向" name="signDirection" rules={[{ required: true }]}>
+                <Select placeholder="请选择" options={[{ label: '给客户', value: 'toCustomer' }, { label: '给内部', value: 'toInner' }]} />
+              </Form.Item>
+            </Col>
+            <Col span={8}>
+              <Form.Item label="紧急程度" name="urgency" rules={[{ required: true }]}>
+                <Radio.Group options={[{ label: '普通', value: 'normal' }, { label: '紧急', value: 'urgent' }]} />
+              </Form.Item>
+            </Col>
+          </Row>
           <Form.Item label="处理意见" name="opinion">
             <Input.TextArea rows={2} placeholder="请输入处理意见" />
           </Form.Item>
@@ -317,15 +362,15 @@ const Component = function LbuB2bSpecialPrice() {
             <Select mode="multiple" placeholder="请选择通知人" options={[{ label: '销售', value: 'sales' }, { label: '主管', value: 'manager' }, { label: '财务', value: 'finance' }]} />
           </Form.Item>
 
-          <Divider className="lbsp-divider" />
+          <Divider style={{ margin: '24px 0' }} />
 
-          <div className="lbsp-actions">
+          <Flex justify="center" style={{ padding: '0 0 8px' }}>
             <Space size="large">
               <Button type="primary" onClick={handleSubmit}>提交</Button>
               <Button onClick={handleSaveDraft}>暂存</Button>
               <Button onClick={resetForm}>重置</Button>
             </Space>
-          </div>
+          </Flex>
         </Form>
       </Card>
 
