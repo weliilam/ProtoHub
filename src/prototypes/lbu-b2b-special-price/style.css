@@ -1,0 +1,149 @@
+/* ========================= LBU-B2B客户单票特价申请 样式 ========================= */
+
+.lbsp-page {
+  padding: 20px;
+  background: #f5f7fa;
+  min-height: 100vh;
+}
+
+.lbsp-card {
+  max-width: 1400px;
+  margin: 0 auto;
+  border-radius: 8px;
+}
+
+.lbsp-title {
+  font-size: 18px;
+  font-weight: 600;
+  color: #1a1a2e;
+}
+
+.lbsp-form .ant-form-item-label {
+  font-weight: 500;
+  color: #374151;
+}
+
+.lbsp-form .ant-form-item-label > label::after {
+  content: '';
+}
+
+.lbsp-divider {
+  margin: 24px 0;
+  border-color: #e5e7eb;
+}
+
+.lbsp-section-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: #1a1a2e;
+  margin: 16px 0 12px;
+  padding-left: 12px;
+  border-left: 4px solid #2563eb;
+}
+
+.lbsp-sub-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: #4b5563;
+  margin: 16px 0 8px;
+}
+
+.lbsp-required {
+  color: #dc2626;
+  font-weight: normal;
+  font-size: 12px;
+  margin-left: 8px;
+}
+
+.lbsp-tips {
+  background: #fef3c7;
+  border: 1px solid #fcd34d;
+  border-radius: 4px;
+  padding: 8px 12px;
+  color: #92400e;
+  font-size: 13px;
+  margin: 8px 0 16px;
+}
+
+.lbsp-tips-inline {
+  color: #dc2626;
+  font-size: 12px;
+  font-weight: normal;
+  margin-left: 12px;
+}
+
+.lbsp-sub-table {
+  background: #fafafa;
+  border: 1px solid #e5e7eb;
+  border-radius: 4px;
+  padding: 12px;
+  margin-bottom: 16px;
+}
+
+.lbsp-sub-table-header {
+  display: flex;
+  gap: 8px;
+  padding: 8px 0;
+  font-weight: 600;
+  color: #374151;
+  border-bottom: 1px solid #e5e7eb;
+  margin-bottom: 8px;
+}
+
+.lbsp-sub-table-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 0;
+}
+
+.lbsp-price-table .lbsp-sub-table-row {
+  flex-wrap: wrap;
+}
+
+.lbsp-actions {
+  display: flex;
+  justify-content: center;
+  padding: 24px 0 8px;
+  border-top: 1px solid #e5e7eb;
+  margin-top: 24px;
+}
+
+/* ========================= 允许协同开关按钮组 ========================= */
+.lbsp-collab-toggle.ant-radio-group {
+  display: inline-flex;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  overflow: hidden;
+  background: #f9fafb;
+}
+
+.lbsp-collab-toggle .ant-radio-button-wrapper {
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  height: 28px;
+  line-height: 28px;
+  padding: 0 16px;
+  color: #6b7280;
+  transition: all 0.2s ease;
+}
+
+.lbsp-collab-toggle .ant-radio-button-wrapper::before {
+  display: none;
+}
+
+.lbsp-collab-toggle .ant-radio-button-wrapper:hover {
+  color: #2563eb;
+}
+
+.lbsp-collab-toggle .ant-radio-button-wrapper-checked {
+  background: #2563eb;
+  color: #ffffff;
+  box-shadow: none;
+}
+
+.lbsp-collab-toggle .ant-radio-button-wrapper-checked:hover {
+  color: #ffffff;
+  background: #1d4ed8;
+}
