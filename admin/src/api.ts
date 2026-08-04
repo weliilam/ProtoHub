@@ -1,4 +1,4 @@
-import type { Annotation, CliStatus, EntryItem, GitLogItem, GroupConfig, PrdDoc, PrototypeInfo } from './types';
+import type { AiStatus, Annotation, EntryItem, GitLogItem, GroupConfig, PrdDoc, PrototypeInfo } from './types';
 
 async function request<T = any>(url: string, options?: RequestInit): Promise<T> {
   const res = await fetch(url, {
@@ -65,22 +65,29 @@ export const api = {
     ),
 
   // AI CLI
-  aiStatus: () => request<Record<string, CliStatus>>('/api/ai/status'),
+  aiStatus: () => request<AiStatus>('/api/ai/status'),
   /**
    * 执行 AI CLI（流式）。
    * onChunk 回调会实时收到 AI 输出片段；最终返回完整结果。
+   * onThinking 回调实时收到思考过程片段（灰色斜体展示，可选）。
+   * model / fallbackModel 仅对 codebuddy 生效（--model / --fallback-model）。
+   * onPing 每 5s 收到一次服务端心跳（elapsed 为已运行秒数），用于展示运行时长/确认进程存活。
    */
   aiExecute: (
     cli: string,
     prompt: string,
     onChunk?: (chunk: string) => void,
     signal?: AbortSignal,
+    model?: string,
+    fallbackModel?: string,
+    onPing?: (elapsedSec: number) => void,
+    onThinking?: (chunk: string) => void,
   ): Promise<{ output: string; timedOut: boolean }> =>
     new Promise((resolve, reject) => {
       fetch('/api/ai/execute', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ cli, prompt }),
+        body: JSON.stringify({ cli, prompt, model, fallbackModel }),
         signal,
       })
         .then(async (res) => {
@@ -104,6 +111,8 @@ export const api = {
                 try {
                   const msg = JSON.parse(line);
                   if (msg.type === 'chunk') onChunk?.(msg.data);
+                  else if (msg.type === 'thinking') onThinking?.(msg.data);
+                  else if (msg.type === 'ping') onPing?.(msg.elapsed);
                   else if (msg.type === 'done') final = { output: msg.output, timedOut: msg.timedOut };
                   else if (msg.type === 'error') throw new Error(msg.error);
                 } catch (e: any) {
@@ -137,6 +146,8 @@ export const api = {
     request(`/api/groups?id=${encodeURIComponent(id)}`, { method: 'DELETE' }),
   moveToGroup: (prototype: string, groupId?: string) =>
     request('/api/groups/move', { method: 'POST', body: JSON.stringify({ prototype, groupId }) }),
+  reorderGroups: (ids: string[]) =>
+    request('/api/groups/reorder', { method: 'POST', body: JSON.stringify({ ids }) }),
 
   // ── 版本对比 ──
   /** 准备对比：提取两个版本的原型文件到临时目录，返回两个 iframe URL */

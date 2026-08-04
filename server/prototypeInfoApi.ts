@@ -166,11 +166,12 @@ export function prototypeInfoPlugin(): Plugin {
         const dir = path.join(projectRoot, 'src', 'prototypes', name);
         if (!fs.existsSync(dir)) return sendError(res, '原型不存在', 404);
 
-        // 基本信息：从入口文件顶部注释解析 @name / @mode
+        // 基本信息：从入口文件顶部注释解析 @name / @mode（兼容 index.tsx / index.vue）
         let title = name;
         let mode = '';
-        const entry = path.join(dir, 'index.tsx');
-        if (fs.existsSync(entry)) {
+        const entryCandidates = [path.join(dir, 'index.tsx'), path.join(dir, 'index.vue')];
+        const entry = entryCandidates.find((p) => fs.existsSync(p));
+        if (entry) {
           const head = fs.readFileSync(entry, 'utf8').slice(0, 2000);
           const t = head.match(/@name\s+([^\n]+)/);
           const mo = head.match(/@mode\s+([^\n]+)/);
@@ -179,10 +180,12 @@ export function prototypeInfoPlugin(): Plugin {
         }
 
         let mtime = '';
-        try {
-          mtime = fs.statSync(entry).mtime.toISOString();
-        } catch {
-          /* ignore */
+        if (entry) {
+          try {
+            mtime = fs.statSync(entry).mtime.toISOString();
+          } catch {
+            /* ignore */
+          }
         }
 
         // 批注数量

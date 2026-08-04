@@ -14,3 +14,10 @@ src/docs/
 dev.stdout.log
 dev.stderr.log
 annotations.json.bak
+# 根目录调试/临时文件（不入库）
+/_*.txt
+/_*.log
+/_*.md
+/_*.json
+/_*.cjs
+/_*.mjs

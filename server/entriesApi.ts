@@ -90,7 +90,11 @@ export function collectEntries(): EntryItem[] {
 
   for (const name of scanDir(path.join(projectRoot, 'src/prototypes'))) {
     if (name.startsWith('.') || name.startsWith('__cmp_')) continue; // 跳过隐藏文件和对比临时目录
-    if (!fs.existsSync(path.join(projectRoot, 'src/prototypes', name, 'index.tsx'))) continue;
+    const protoDir = path.join(projectRoot, 'src/prototypes', name);
+    // 兼容 React(index.tsx) 与 Vue(index.vue) 两种引擎入口
+    const hasEntry =
+      fs.existsSync(path.join(protoDir, 'index.tsx')) || fs.existsSync(path.join(protoDir, 'index.vue'));
+    if (!hasEntry) continue;
     const g = groupMap.get(name);
     items.push({
       name,
@@ -265,6 +269,26 @@ export function entriesApiPlugin(): Plugin {
             if (!id) return sendError(res, '缺少 id');
             const groups = readGroups().filter((g) => g.id !== id);
             writeGroups(groups);
+            invalidateEntriesCache();
+            sendJson(res, { success: true });
+            return;
+          }
+
+          // 分组（文件夹）上下排序：按 ids 顺序整体重排
+          if (pathname === '/api/groups/reorder' && req.method === 'POST') {
+            const body = await readJsonBody<{ ids?: string[] }>(req);
+            const ids = body.ids || [];
+            const groups = readGroups();
+            const order = new Map(ids.map((id, i) => [id, i]));
+            // 保持未在 ids 中的分组（容错）排在最后，按原顺序
+            const reordered = [...groups].sort((a, b) => {
+              const ia = order.get(a.id);
+              const ib = order.get(b.id);
+              if (ia === undefined) return ib === undefined ? 0 : 1;
+              if (ib === undefined) return -1;
+              return ia - ib;
+            });
+            writeGroups(reordered);
             invalidateEntriesCache();
             sendJson(res, { success: true });
             return;

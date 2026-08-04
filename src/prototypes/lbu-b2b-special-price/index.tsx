@@ -137,8 +137,8 @@ const Component = function LbuB2bSpecialPrice() {
               </Form.Item>
             </Col>
             <Col span={12}>
-              <Form.Item label="员工工号" name="employeeNo" rules={[{ required: true }]}>
-                <Select placeholder="输入员工工号搜索" showSearch optionFilterProp="label" options={EMPLOYEE_OPTIONS} />
+              <Form.Item label="工号" name="employeeNo" rules={[{ required: true }]}>
+                <Select placeholder="输入工号搜索" showSearch optionFilterProp="label" options={EMPLOYEE_OPTIONS} />
               </Form.Item>
             </Col>
             <Col span={12}>

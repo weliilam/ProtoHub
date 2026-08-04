@@ -19,7 +19,7 @@
 |--------|------|------|------|--------|
 | requestNo | string | 是 | 调用方唯一请求编号，用于幂等控制 | REQ202607030001 |
 | applicant | string | 是 | 申请人 | 孙晓雨 |
-| employeeNo | string | 是 | 员工工号 | zt19777 |
+| employeeNo | string | 是 | 工号 | zt19777 |
 | applyDate | string | 是 | 申请日期，格式 yyyy-MM-dd | 2026-07-03 |
 | dept | string | 是 | 申请人所在部门 | 数据运营组 |
 

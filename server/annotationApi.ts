@@ -15,6 +15,7 @@ export interface Annotation {
   elementDescription?: string; // 富上下文描述（供 AI 精准定位源码）
   status: 'open' | 'done' | 'resolved';
   createdAt: string;
+  resolvedBy?: string; // 标记完成时使用的 AI 模型名称
 }
 
 type Store = Record<string, Annotation[]>;

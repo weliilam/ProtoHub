@@ -2,6 +2,8 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { Button, Dropdown, Empty, Input, Modal, Select, Space, Tabs, Tag, Tooltip, message } from 'antd';
 import {
   AppstoreOutlined,
+  ArrowDownOutlined,
+  ArrowUpOutlined,
   DatabaseOutlined,
   DeleteOutlined,
   EditOutlined,
@@ -239,6 +241,10 @@ function GroupPanel(props: {
   allGroups: GroupConfig[];
   isOpen: boolean;
   onToggle: () => void;
+  /** 分组整体上移/下移 */
+  index?: number;
+  total?: number;
+  onMoveGroupOrder?: (id: string, dir: -1 | 1) => void;
 }) {
   const { group, items, selected, allGroups } = props;
   const [dropIndex, setDropIndex] = useState<number | null>(null);
@@ -306,15 +312,30 @@ function GroupPanel(props: {
         {props.isOpen ? <FolderOpenOutlined style={{ color: 'var(--ph-sidebar-folder-open)' }} /> : <FolderOutlined style={{ color: 'var(--ph-sidebar-folder-closed)' }} />}
         <span className="ph-folder-title">{group.name}</span>
         <span className="ph-folder-count">{items.length}</span>
-        <span onClick={(e) => e.stopPropagation()}>
+        <span onClick={(e) => e.stopPropagation()} className="ph-folder-actions">
           <Dropdown
             menu={{
               items: [
+                {
+                  key: 'moveUp',
+                  icon: <ArrowUpOutlined />,
+                  label: '上移分组',
+                  disabled: (props.index ?? 0) === 0,
+                },
+                {
+                  key: 'moveDown',
+                  icon: <ArrowDownOutlined />,
+                  label: '下移分组',
+                  disabled: (props.index ?? 0) >= (props.total ?? 1) - 1,
+                },
+                { type: 'divider' },
                 { key: 'rename', icon: <EditOutlined />, label: '重命名' },
                 { key: 'delete', icon: <DeleteOutlined />, label: '删除', danger: true },
               ],
               onClick: ({ key, domEvent }) => {
                 domEvent.stopPropagation();
+                if (key === 'moveUp') props.onMoveGroupOrder?.(group.id, -1);
+                if (key === 'moveDown') props.onMoveGroupOrder?.(group.id, 1);
                 if (key === 'rename') handleRenameGroup();
                 if (key === 'delete') handleDeleteGroup();
               },
@@ -385,6 +406,7 @@ export default function Sidebar(props: SidebarProps) {
     }
   });
   const hadSavedState = useRef(localStorage.getItem('ph_open_folders') !== null);
+  const createNameRef = useRef<Input>(null);
 
   // 搜索关键词 150ms 防抖
   const handleKeywordChange = (val: string) => {
@@ -485,6 +507,27 @@ export default function Sidebar(props: SidebarProps) {
       props.onRefresh();
     } catch (e: any) {
       message.error(e.message || '操作失败');
+    }
+  };
+
+  // 分组（文件夹）整体上移/下移
+  const handleMoveGroupOrder = async (id: string, dir: -1 | 1) => {
+    const idx = groups.findIndex((g) => g.id === id);
+    const to = idx + dir;
+    if (idx < 0 || to < 0 || to >= groups.length) return;
+    const next = [...groups];
+    const [g] = next.splice(idx, 1);
+    next.splice(to, 0, g);
+    setGroups(next); // 乐观更新
+    try {
+      await api.reorderGroups(next.map((g2) => g2.id));
+      const res = await api.fetchGroups();
+      setGroups(res || []);
+      props.onRefresh();
+    } catch (e: any) {
+      message.error(e.message || '排序失败');
+      const res = await api.fetchGroups();
+      setGroups(res || []);
     }
   };
 
@@ -713,17 +756,52 @@ export default function Sidebar(props: SidebarProps) {
   const handleCreate = (type: EntryType) => {
     let name = '';
     let title = '';
+    // 由标题自动生成 kebab-case 目录名（仅保留英文/数字，中文标题走时间戳兜底，避免中文目录 404）
+    const autoDirName = (t: string) => {
+      const base = t
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-+|-+$/g, '')
+        .slice(0, 50);
+      return base || `proto-${Date.now().toString(36)}`;
+    };
+    // 标题失焦时，若目录名尚未填写则自动填入
+    const applyAutoName = () => {
+      if (type !== 'prototype') return;
+      const el = createNameRef.current?.input as HTMLInputElement | undefined;
+      if (el && !el.value.trim() && title.trim()) {
+        const n = autoDirName(title);
+        el.value = n;
+        name = n;
+      }
+    };
     Modal.confirm({
       title: `新建${type === 'prototype' ? '原型' : type === 'doc' ? '文档' : '数据表'}`,
       content: (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 8 }}>
-          <Input placeholder="目录名（英文/中划线，如 order-list）" onChange={(e) => (name = e.target.value)} />
-          <Input placeholder="显示标题（可选）" onChange={(e) => (title = e.target.value)} />
+          <Input
+            placeholder="显示标题（如 B2B 订单列表）"
+            onChange={(e) => (title = e.target.value)}
+            onBlur={applyAutoName}
+          />
+          {type === 'prototype' ? (
+            <Input
+              ref={createNameRef}
+              placeholder="目录名（根据标题自动生成，可修改）"
+              onChange={(e) => (name = e.target.value)}
+            />
+          ) : (
+            <Input placeholder="目录名（英文/中划线，如 order-list）" onChange={(e) => (name = e.target.value)} />
+          )}
         </div>
       ),
       okText: '创建',
       cancelText: '取消',
       onOk: async () => {
+        // 直接点创建未触发失焦时，兜底自动生成
+        if (type === 'prototype' && !name.trim() && title.trim()) {
+          name = autoDirName(title);
+        }
         if (!name.trim()) {
           message.warning('请输入目录名');
           return Promise.reject();
@@ -759,7 +837,7 @@ export default function Sidebar(props: SidebarProps) {
 
     return (
       <>
-        {orderedGroups.map((g) => (
+        {orderedGroups.map((g, idx) => (
           <GroupPanel
             key={g.id}
             group={g}
@@ -773,6 +851,9 @@ export default function Sidebar(props: SidebarProps) {
             onDeleteGroup={handleDeleteGroup}
             onReorder={handleReorder}
             allGroups={groups}
+            index={idx}
+            total={orderedGroups.length}
+            onMoveGroupOrder={handleMoveGroupOrder}
             isOpen={openFolders.has(g.id)}
             onToggle={() =>
               setOpenFolders((prev) => {

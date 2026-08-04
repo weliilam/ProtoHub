@@ -974,9 +974,108 @@ body {
   animation: ph-cursor-blink 0.8s step-end infinite;
 }
 
+/* 思考过程：灰色小字，让用户实时看到 AI 正在思考 */
+.ph-ai-thinking {
+  color: var(--ph-text-secondary);
+  font-size: 12px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.ph-ai-thinking-label {
+  display: block;
+  margin-bottom: 2px;
+  color: var(--ph-accent);
+  font-weight: 600;
+  font-size: 11px;
+  letter-spacing: 0.5px;
+}
+
+.ph-ai-target-tag {
+  margin-left: 6px;
+  padding: 0 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  line-height: 18px;
+  color: var(--ph-accent);
+  border: 1px solid var(--ph-border);
+  background: var(--ph-bg, transparent);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 220px;
+  vertical-align: middle;
+}
+
+.ph-ai-collapse-body {
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.ph-ai-collapse-btn {
+  margin-top: 6px;
+  padding: 1px 10px;
+  font-size: 11px;
+  line-height: 18px;
+  border-radius: 999px;
+  border: 1px solid var(--ph-border);
+  color: var(--ph-accent);
+  background: transparent;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+}
+
+.ph-ai-collapse-btn:hover {
+  border-color: var(--ph-accent);
+  background: var(--ph-accent-soft, rgba(100, 108, 255, 0.08));
+}
+
 @keyframes ph-cursor-blink {
   0%, 100% { opacity: 1; }
   50% { opacity: 0; }
+}
+
+/* 运行中占位气泡：明确告知 AI 正在执行 */
+.ph-ai-msg.assistant.running {
+  border-style: dashed;
+  border-color: var(--ph-accent);
+}
+
+.ph-ai-running-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--ph-text-secondary);
+  font-size: 13px;
+}
+
+/* 头部运行徽标 */
+.ph-ai-running-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-left: 8px;
+  padding: 1px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--ph-accent);
+  background: var(--ph-gradient-soft);
+  vertical-align: 2px;
+}
+
+.ph-ai-running-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--ph-accent);
+  animation: ph-pulse 1.2s ease-in-out infinite;
+}
+
+@keyframes ph-pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.35; transform: scale(0.8); }
 }
 
 .ph-ai-msg .ph-ai-msg-meta {
@@ -991,10 +1090,48 @@ body {
   background: var(--ph-panel-bg);
 }
 
+/* 分组头操作区：更多按钮 */
+.ph-folder-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+}
+
+/* 输入框更高：多行自适应 + 发送按钮与输入框等高 */
+.ph-ai-input-area .ph-ai-input-row {
+  display: flex;
+  align-items: stretch;
+  gap: 8px;
+}
+
+.ph-ai-input-area .ph-ai-input {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.ph-ai-input-area .ph-ai-input .ant-input {
+  resize: none;
+}
+
+.ph-ai-input-area .ph-ai-send {
+  align-self: stretch;
+  height: auto;
+  min-width: 40px;
+}
+
 .ph-ai-quick-actions {
   display: flex;
   gap: 6px;
   flex-wrap: wrap;
+  margin-bottom: 8px;
+}
+
+.ph-ai-control-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
   margin-bottom: 8px;
 }
 

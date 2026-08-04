@@ -10,6 +10,7 @@ import {
   RollbackOutlined,
 } from '@ant-design/icons';
 import { api } from '../api';
+import { getAiModel } from '../aiModelStore';
 import { CompareView } from './CompareView';
 import type { CliStatus, EntryItem, GitLogItem } from '../types';
 
@@ -167,7 +168,7 @@ export default function GitPanel({ selected, onRestored }: Props) {
     saveAiSummaries(initVal);
     setStreamingHashes((prev) => new Set(prev).add(hash));
     try {
-      const status = (await api.aiStatus()) as Record<string, CliStatus>;
+      const status = (await api.aiStatus()).clis;
       const available = Object.entries(status)
         .filter(([, v]) => v.available)
         .map(([k]) => k);
@@ -207,14 +208,20 @@ export default function GitPanel({ selected, onRestored }: Props) {
 ${diffObj.diff.slice(0, 8000)}`;
       // 用 streaming 回调实时更新 aiSummaries[hash]，前端逐字可见
       let streaming = '';
-      const { output, timedOut } = await api.aiExecute(cli, prompt, (chunk) => {
-        streaming += chunk;
-        setAiSummaries((prev) => {
-          const next = { ...prev, [hash]: streaming };
-          saveAiSummaries(next);
-          return next;
-        });
-      });
+      const { output, timedOut } = await api.aiExecute(
+        cli,
+        prompt,
+        (chunk) => {
+          streaming += chunk;
+          setAiSummaries((prev) => {
+            const next = { ...prev, [hash]: streaming };
+            saveAiSummaries(next);
+            return next;
+          });
+        },
+        undefined,
+        getAiModel(), // 固定模型（仅 codebuddy 生效）
+      );
       const text = output.trim() || '（AI 未返回说明）';
       const finalText = timedOut ? `${text}\n\n[提示：AI 执行超时，说明可能不完整]` : text;
       setAiSummaries((prev) => {

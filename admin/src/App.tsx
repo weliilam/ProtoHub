@@ -365,11 +365,11 @@ export default function App() {
     setUndoStack((s) => [...s, { kind: 'delete', annotation: a }]);
   };
 
-  // 发布成功后把已勾选批注标记为已完成（页面标记自动变绿），并记录可撤销
-  const markAnnotationsDone = async (ids: string[]) => {
+  // 发布成功后把已勾选批注标记为已完成（页面标记自动变绿），并记录本次修改使用的 AI 模型、记录可撤销
+  const markAnnotationsDone = async (ids: string[], resolvedBy?: string) => {
     if (!selected || ids.length === 0) return;
     for (const id of ids) {
-      await api.updateAnnotation(id, { status: 'done' });
+      await api.updateAnnotation(id, { status: 'done', resolvedBy });
     }
     setAnnotations(await api.listAnnotations(selected.name));
     setUndoStack((s) => [

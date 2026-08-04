@@ -32,6 +32,8 @@ export interface Annotation {
    * 如 "表格「操作」列（第2列，"ID"左侧，"状态"右侧）"
    */
   elementDescription?: string;
+  /** 标记完成时使用的 AI 模型名称，用于追溯该批注由哪个模型修改 */
+  resolvedBy?: string;
 }
 
 export interface GitLogItem {
@@ -43,6 +45,16 @@ export interface GitLogItem {
 export interface CliStatus {
   label: string;
   available: boolean;
+}
+
+export interface AiModelOption {
+  id: string;
+  label: string;
+}
+
+export interface AiStatus {
+  clis: Record<string, CliStatus>;
+  models: AiModelOption[];
 }
 
 /** 原型基本信息：由 /api/prototype/info 返回 */

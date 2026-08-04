@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 36 36">
+  <defs>
+    <linearGradient id="ph-logo-grad" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#2f54eb"/>
+      <stop offset="100%" stop-color="#1677ff"/>
+    </linearGradient>
+    <clipPath id="ph-logo-clip">
+      <circle cx="18" cy="20" r="14"/>
+    </clipPath>
+  </defs>
+  <!-- 纯白背景，无边框 -->
+  <rect width="36" height="36" rx="8" fill="#ffffff"/>
+  <!-- 飞出的蛋壳碎片 -->
+  <rect x="24.5" y="1" width="6.5" height="6.5" rx="1.5" transform="rotate(20 27.75 4.25)" fill="url(#ph-logo-grad)"/>
+  <!-- 蛋体 -->
+  <circle cx="18" cy="20" r="14" fill="url(#ph-logo-grad)"/>
+  <!-- 锯齿裂纹：白色（与侧边栏 logo 的亮色模式一致），clip 到蛋体边缘形成"破壳" -->
+  <polyline
+    points="2,20 7,15.5 12.5,23 18,15.5 23.5,23 29,15.5 34,20"
+    clipPath="url(#ph-logo-clip)"
+    fill="none"
+    stroke="#ffffff"
+    stroke-width="2.6"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+  />
+</svg>

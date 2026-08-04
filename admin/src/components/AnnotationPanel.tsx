@@ -3,6 +3,7 @@ import { CheckOutlined, CopyOutlined, DeleteOutlined, LoadingOutlined, ReloadOut
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { api } from '../api';
 import { aiRunStore } from '../aiRunStore';
+import { getAiModel, getAiModelLabel } from '../aiModelStore';
 import type { Annotation, CliStatus } from '../types';
 
 /** 从 CSS 选择器中提炼出友好标签（取最后一个有意义的 class 名 + 元素名） */
@@ -27,8 +28,8 @@ interface Props {
   onToggleStatus: (a: Annotation) => Promise<void>;
   onDelete: (a: Annotation) => Promise<void>;
   onApplied?: () => void;
-  /** 发布成功后把已勾选批注标记为已完成（让页面标记变绿） */
-  onMarkDone?: (ids: string[]) => Promise<void>;
+  /** 发布成功后把已勾选批注标记为已完成（让页面标记变绿），并记录使用的 AI 模型 */
+  onMarkDone?: (ids: string[], resolvedBy?: string) => Promise<void>;
   /** 找不到对应元素的失效批注 */
   orphanAnnotations?: Annotation[];
   /** 一键删除失效批注 */
@@ -218,7 +219,7 @@ export default function AnnotationPanel({ target, annotations, onToggleStatus, o
     setLiveOutput('');
     aiRunStore.set(true);
     try {
-      const status = (await api.aiStatus()) as Record<string, CliStatus>;
+      const status = (await api.aiStatus()).clis;
       const available = Object.entries(status)
         .filter(([, v]) => v.available)
         .map(([k]) => k);
@@ -228,9 +229,15 @@ export default function AnnotationPanel({ target, annotations, onToggleStatus, o
         return;
       }
       const prompt = buildAiPrompt(target, selectedOpen);
-      const { output, timedOut } = await api.aiExecute(cli, prompt, (chunk) => {
-        setLiveOutput((prev) => prev + chunk);
-      });
+      const { output, timedOut } = await api.aiExecute(
+        cli,
+        prompt,
+        (chunk) => {
+          setLiveOutput((prev) => prev + chunk);
+        },
+        undefined,
+        getAiModel(), // 固定模型（仅 codebuddy 生效）
+      );
 
       // 发布后抓取该原型相对 HEAD 的代码改动，让产品同学直接看到改了什么
       const scope = `src/prototypes/${target}`;
@@ -243,18 +250,20 @@ export default function AnnotationPanel({ target, annotations, onToggleStatus, o
 
       // 超时 = AI 可能被中途杀掉，存在半截改动。不自动标完成，交给用户人工确认。
       const appliedIds = selectedOpen.map((a) => a.id);
+      // 记录本次实际生效的模型（仅 codebuddy 支持 --model，其它 CLI 用各自默认模型）
+      const modelLabel = cli === 'codebuddy' ? (getAiModel() ? getAiModelLabel() : 'CLI 默认') : `CLI 默认（${cli}）`;
       // 优先用 AI 产出的业务说明；缺失时回退到批注清单
       const businessSummary = extractBusinessSummary(output) || buildBusinessFallback(selectedOpen);
       if (!timedOut && onMarkDone && appliedIds.length > 0) {
         try {
-          await onMarkDone(appliedIds);
+          await onMarkDone(appliedIds, modelLabel);
         } catch {
           /* 标记失败不影响已完成的代码改动 */
         }
       }
 
       Modal.info({
-        title: timedOut ? `AI 执行超时（${cli}），请人工确认改动是否完整` : `CodeBuddy 已应用修改（${cli}）`,
+        title: timedOut ? `AI 执行超时（${cli} · ${modelLabel}），请人工确认改动是否完整` : `CodeBuddy 已应用修改（${cli} · ${modelLabel}）`,
         width: 760,
         content: (
           <div>
@@ -532,6 +541,9 @@ export default function AnnotationPanel({ target, annotations, onToggleStatus, o
                   <Tag color={a.status === 'open' ? 'red' : a.status === 'resolved' ? 'blue' : 'green'}>
                     {a.status === 'open' ? '待处理' : a.status === 'resolved' ? '已解决' : '已完成'}
                   </Tag>
+                  {a.status !== 'open' && a.resolvedBy && (
+                    <Tag color="cyan">由 {a.resolvedBy} 修改</Tag>
+                  )}
                 </Space>
                 <Typography.Paragraph style={{ marginBottom: 6, fontSize: 13 }}>{a.text}</Typography.Paragraph>
                 <Typography.Text type="secondary" style={{ fontSize: 11 }}>

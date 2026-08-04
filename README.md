@@ -1,6 +1,6 @@
 # Proto Hub — 本地 AI 原型工作台
 
-> 基于 Vite + React + Ant Design 的本地原型工作台。内置**原型预览、批注、Git 快照、AI CLI、分组管理、飞书 PRD 同步**，帮助产品 / 设计 / 开发在同一处快速搭建、评审与管理前端原型。
+> 基于 Vite + React / Vue + Ant Design 的本地原型工作台。内置**原型预览、批注、Git 快照、AI CLI、分组管理、飞书 PRD 同步**，帮助产品 / 设计 / 开发在同一处快速搭建、评审与管理前端原型。
 
 ---
 
@@ -22,10 +22,10 @@
 | 类别 | 选型 |
 |------|------|
 | 构建 | Vite 5（`appType: 'custom'`，页面由插件伺服） |
-| 前端 | React 18 + TypeScript |
-| UI | Ant Design 5 + @ant-design/icons |
-| 包管理 | pnpm |
-| 其他 | dayjs、marked（文档渲染）、xlsx（数据表导入导出）、playwright（截图/渲染） |
+| 前端 | React 18 + TypeScript、Vue 3（双引擎） |
+| UI | React：Ant Design 5 + @ant-design/icons；Vue：ant-design-vue + element-plus |
+| 包管理 | npm（使用 `package-lock.json` 锁定版本） |
+| 其他 | dayjs、marked（文档渲染）、xlsx（数据表导入导出）、playwright（截图/渲染，预留） |
 
 ---
 
@@ -34,8 +34,11 @@
 ### 环境要求
 
 - Node.js 18+
-- 包管理器：pnpm
+- 包管理器：npm（随 Node.js 自带）
 - Git（用于快照功能）
+
+> 💡 **想在一台全新机器上完整安装（含飞书 PRD 同步、AI CLI 等全部扩展）？**
+> 直接照 **[SETUP.md](SETUP.md) 完整安装手册** 执行即可，一键装齐框架 + 扩展，含验证清单与常见问题。
 
 ### 获取项目（从 Git 克隆）
 
@@ -51,14 +54,14 @@ cd ProtoHub
 ### 安装与启动
 
 ```bash
-pnpm install      # 安装依赖
-pnpm dev          # 启动开发服务器，默认 http://localhost:5173
+npm install        # 安装依赖
+npm run dev        # 启动开发服务器，默认 http://localhost:5173
 ```
 
 其他脚本：
 
 ```bash
-pnpm typecheck    # TypeScript 类型检查（tsc --noEmit）
+npm run typecheck  # TypeScript 类型检查（tsc --noEmit）
 ```
 
 ---
@@ -149,6 +152,9 @@ export default function App() {
 
 保存后刷新条目列表，新原型即出现在左侧。
 
+> Vue 原型同理：默认导出一个 Vue 组件即可（`ant-design-vue` / `element-plus` 组件库均已内置）。
+> 生成 Vue 原型时，`index.tsx` 模板中的 React 写法可替换为 `index.vue` + `style.css` 结构。
+
 ---
 
 ## 🗂️ 分组管理
@@ -197,7 +203,9 @@ export default function App() {
 ### AI CLI
 
 - 右侧「AI CLI」面板可调用已配置的 AI 命令行工具；
-- 面板显示各 CLI 的可用状态，输入 prompt 即可在当前原型上下文中执行代码生成 / 修改。
+- 面板显示各 CLI 的可用状态，输入 prompt 即可在当前原型上下文中执行代码生成 / 修改；
+- **模型选择（CodeBuddy）**：面板内可选择 DeepSeek / Kimi / GLM / MiniMax 等模型，选择后持久化，聊天、批注发布、Git 解读均固定使用该模型；不选则跟随 CLI 默认；
+- **后台任务**：任务发出后即使关闭面板或切换条目仍继续执行，重新打开面板自动恢复运行状态与已累积的流式输出。
 
 ### 飞书 PRD 同步（详见下方 [飞书集成](#-飞书集成)）
 
@@ -216,10 +224,12 @@ export default function App() {
 ## 🔌 飞书集成
 
 > ⚠️ **从 Git 克隆后，飞书功能不会自动生效**，需要额外配置。
+>
+> 💡 需要一键装齐全部扩展？直接照 **[SETUP.md](SETUP.md)** 执行即可。
 
 ### 依赖说明
 
-飞书 PRD 关联与内容同步依赖全局安装的 **`lark-cli`** 命令行工具，该工具不在本项目 `package.json` 中（不随 `pnpm install` 安装）。
+飞书 PRD 关联与内容同步依赖全局安装的 **`lark-cli`** 命令行工具，该工具不在本项目 `package.json` 中（不随 `npm install` 安装）。
 
 ### 安装指引
 
@@ -262,7 +272,7 @@ lark-cli auth status
 
 ### 依赖说明
 
-AI CLI 功能依赖用户本机已安装的 AI 命令行工具，**不在本项目依赖中**。
+AI CLI 功能依赖用户本机已安装的 AI 命令行工具，**不在本项目依赖中**（完整安装指引见 [SETUP.md](SETUP.md)）。
 
 ### 支持的 CLI
 
@@ -356,12 +366,23 @@ AI CLI 功能依赖用户本机已安装的 AI 命令行工具，**不在本项�
 
 ## ⚠️ 注意事项
 
-- 本工具为**本地工作台**，需在本机运行 `pnpm dev` 后通过浏览器访问；
+- 本工具为**本地工作台**，需在本机运行 `npm run dev` 后通过浏览器访问；
 - 原型代码直接运行在本地 Node/Vite 环境，请勿放入敏感凭据；
 - `src/prototypes/.groups.json` 为分组配置，建议一并纳入版本管理；
 - 删除原型 / 重命名时会自动清理分组中的引用，无需手动维护；
 - **飞书功能**需额外安装 `lark-cli` 并完成认证（详见上方 [飞书集成](#-飞书集成)）；
 - **AI CLI** 需用户自行在本地安装对应的命令行工具（详见上方 [AI CLI 配置](#-ai-cli-配置)）。
+
+---
+
+## 📌 最近更新
+
+- **包管理切换**：`pnpm` → `npm`（仓库改用 `package-lock.json` 锁定版本，安装/启动命令统一为 `npm install` / `npm run dev`）。
+- **AI CLI 面板增强**：支持模型选择并持久化（CodeBuddy：DeepSeek / Kimi / GLM / MiniMax 等）；任务后台执行，关闭面板 / 切换条目不中断，重开自动恢复。
+- **批注发布到 CodeBuddy**：一键把「待处理」批注整理成修改指令发给本地 AI CLI（自动回退已安装 CLI），或复制为 AI 指令。
+- **双引擎支持**：Vue 3 引擎接入，原型可用 `ant-design-vue` / `element-plus` 组件库；新建 Vue 原型使用 `index.vue` + `style.css` 结构。
+- **版本对比增强**：Git 快照支持勾选最多 2 条左右分屏对比 + 变更清单。
+- **原型手写化**：部分原型（如 `b2b-delivery-plan`）移除 DevExtreme 依赖，改为纯手写 HTML/CSS 还原 WinForms 客户端风格，不再依赖大型 UI 库。
 
 ---
 
