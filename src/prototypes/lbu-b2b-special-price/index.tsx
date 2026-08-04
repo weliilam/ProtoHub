@@ -62,6 +62,13 @@ const CARGO_OPTIONS = ['普货', '带电', '液体', '粉末', '仿牌'].map((c)
 const DECLARE_OPTIONS = ['正式报关', '简易报关', '快件报关'].map((c) => ({ label: c, value: c }));
 const TRADE_OPTIONS = ['FOB', 'CIF', 'DDP', 'DDU'].map((c) => ({ label: c, value: c }));
 const CURRENCY_OPTIONS = ['RMB', 'USD', 'EUR', 'HKD', 'GBP'].map((c) => ({ label: c, value: c }));
+const EMPLOYEE_OPTIONS = [
+  { label: 'zt19777 孙晓雨', value: 'zt19777' },
+  { label: 'zt20001 张伟', value: 'zt20001' },
+  { label: 'zt20002 李娜', value: 'zt20002' },
+  { label: 'zt20003 王强', value: 'zt20003' },
+  { label: 'zt20004 刘洋', value: 'zt20004' }
+];
 
 const genApplyNo = () => `LBU${Date.now().toString().slice(-10)}`;
 
@@ -125,8 +132,8 @@ const Component = function LbuB2bSpecialPrice() {
             <Form.Item label="申请人" name="applicant" rules={[{ required: true }]}>
               <Input placeholder="请输入申请人" />
             </Form.Item>
-            <Form.Item label="申请人工号" name="employeeNo" rules={[{ required: true }]}>
-              <Input placeholder="请输入工号" />
+            <Form.Item label="工号" name="employeeNo" rules={[{ required: true }]}>
+              <Select placeholder="输入工号搜索" showSearch optionFilterProp="label" options={EMPLOYEE_OPTIONS} />
             </Form.Item>
             <Form.Item label="申请日期" name="applyDate">
               <Input placeholder="YYYY-MM-DD（默认当天）" />
