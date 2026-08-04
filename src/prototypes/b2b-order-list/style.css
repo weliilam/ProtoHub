@@ -400,3 +400,46 @@ body .ant-picker:hover {
   font-size: 13px;
   line-height: 32px;
 }
+
+/* ========================= 备注导入 ========================= */
+.bol-import-tip {
+  margin-bottom: 12px;
+  font-size: 13px;
+  color: #4b5563;
+}
+
+.bol-import-tip a {
+  margin-left: 6px;
+}
+
+.bol-import-rules {
+  margin-top: 12px;
+  padding: 10px 12px;
+  background: #f9fafb;
+  border-radius: 6px;
+  font-size: 12px;
+  color: #6b7280;
+  line-height: 1.8;
+}
+
+.bol-import-rules-title {
+  font-weight: 600;
+  color: #4b5563;
+}
+
+.bol-import-preview {
+  margin-top: 16px;
+  border-top: 1px dashed #e5e7eb;
+  padding-top: 12px;
+}
+
+.bol-import-preview-title {
+  margin-bottom: 8px;
+  font-weight: 600;
+  font-size: 13px;
+  color: #1a1a2e;
+}
+
+.bol-import-row-error > td {
+  background-color: #fff1f0 !important;
+}

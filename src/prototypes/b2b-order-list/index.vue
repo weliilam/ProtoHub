@@ -189,6 +189,7 @@
               <a-menu-item key="export-followup">跟进记录导出</a-menu-item>
               <a-menu-item key="export-detention">扣件原因导出</a-menu-item>
               <a-menu-divider />
+              <a-menu-item key="import-remark">备注导入</a-menu-item>
               <a-menu-item key="1">打印运单</a-menu-item>
               <a-menu-item key="2">列配置</a-menu-item>
             </a-menu>
@@ -667,6 +668,54 @@
         <a-button type="primary" @click="submitExport">导出</a-button>
       </template>
     </a-modal>
+
+    <!-- 备注导入弹框 -->
+    <a-modal v-model:open="remarkImportOpen" title="备注导入" :width="640">
+      <div class="bol-import-tip">
+        <download-outlined /> 导入模板：
+        <a @click="downloadRemarkTemplate">备注导入模板.csv</a>
+      </div>
+      <a-upload-dragger
+        accept=".csv,.xls,.xlsx"
+        :multiple="false"
+        :before-upload="onRemarkFileBeforeUpload"
+        :file-list="remarkFileList"
+        @remove="onRemarkFileRemove"
+      >
+        <p class="ant-upload-drag-icon"><inbox-outlined /></p>
+        <p class="ant-upload-text">点击或拖拽文件到此处上传</p>
+        <p class="ant-upload-hint">支持 .csv / .xls / .xlsx，表头：运单号、客户备注、配载备注</p>
+      </a-upload-dragger>
+      <div class="bol-import-rules">
+        <div class="bol-import-rules-title">导入规则</div>
+        <div>1. 运单号不能为空；</div>
+        <div>2. 客户备注为空时该字段不做修改，不为空时覆盖更新；</div>
+        <div>3. 配载备注为空时该字段不做修改，不为空时覆盖更新。</div>
+      </div>
+      <div v-if="remarkPreviewRows.length" class="bol-import-preview">
+        <div class="bol-import-preview-title">数据预览（共 {{ remarkPreviewRows.length }} 条）</div>
+        <a-table
+          row-key="key"
+          size="small"
+          :pagination="false"
+          :data-source="remarkPreviewRows"
+          :columns="remarkImportColumns"
+          :row-class-name="remarkRowClassName"
+        >
+          <template #bodyCell="{ column, record }">
+            <template v-if="column.key === 'action'">
+              <a-tag v-if="!record.valid" color="red">运单号为空</a-tag>
+              <a-tag v-else-if="record.action.startsWith('更新')" color="blue">{{ record.action }}</a-tag>
+              <span v-else style="color: #9ca3af">不处理</span>
+            </template>
+          </template>
+        </a-table>
+      </div>
+      <template #footer>
+        <a-button @click="remarkImportOpen = false">取消</a-button>
+        <a-button type="primary" @click="handleRemarkImport">导入</a-button>
+      </template>
+    </a-modal>
   </div>
 </template>
 
@@ -676,6 +725,7 @@ import { ref, reactive, computed } from 'vue';
 import { message, Modal } from 'ant-design-vue';
 import {
   SearchOutlined, ReloadOutlined, DownOutlined, SettingOutlined, DeleteOutlined, CopyOutlined,
+  DownloadOutlined, InboxOutlined,
 } from '@ant-design/icons-vue';
 
 // ========================= 类型 =========================
@@ -922,6 +972,11 @@ const columnConfigOpen = ref(false);
 const exportOpen = ref(false);
 const exportKey = ref('');
 const exportOption = ref('selected');
+
+const remarkImportOpen = ref(false);
+const remarkImportFile = ref<File | null>(null);
+const remarkFileList = ref<any[]>([]);
+const remarkPreviewRows = ref<any[]>([]);
 
 // ========================= 搜索 / 过滤 =========================
 function handleSearch() {
@@ -1333,7 +1388,13 @@ function handleExportType(key: string) {
   exportOpen.value = true;
 }
 function handleMoreMenu(key: string) {
-  if (key === 'export-followup') handleExportFollowUp();
+  if (key === 'import-remark') {
+    remarkImportFile.value = null;
+    remarkFileList.value = [];
+    remarkPreviewRows.value = [];
+    remarkImportOpen.value = true;
+  }
+  else if (key === 'export-followup') handleExportFollowUp();
   else if (key === 'export-detention') handleExportDetention();
   else if (key.startsWith('export-')) handleExportType(key.replace('export-', ''));
   else if (key === '1') { printTemplate.value = 'label'; printOpen.value = true; }
@@ -1341,4 +1402,114 @@ function handleMoreMenu(key: string) {
   else message.info(`功能 "${key}" 待接入后台（原型演示）`);
 }
 function onMenuClick(e: { key: string }) { handleMoreMenu(e.key); }
+
+// ========================= 备注导入 =========================
+const remarkImportColumns = [
+  { title: '序号', key: 'idx', width: 56, customRender: ({ index }: any) => index + 1 },
+  { title: '运单号', dataIndex: 'ytOrderNo', key: 'ytOrderNo', width: 150 },
+  { title: '客户备注', dataIndex: 'customerRemark', key: 'customerRemark', width: 200, ellipsis: true },
+  { title: '配载备注', dataIndex: 'loadingRemark', key: 'loadingRemark', width: 200, ellipsis: true },
+  { title: '处理结果', key: 'action', width: 170 },
+];
+function remarkRowClassName(record: any) {
+  return record.valid ? '' : 'bol-import-row-error';
+}
+function parseCSV(text: string): string[][] {
+  const rows: string[][] = [];
+  let row: string[] = [];
+  let cell = '';
+  let inQuotes = false;
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i];
+    if (inQuotes) {
+      if (ch === '"') {
+        if (text[i + 1] === '"') { cell += '"'; i++; }
+        else inQuotes = false;
+      } else cell += ch;
+    } else if (ch === '"') inQuotes = true;
+    else if (ch === ',') { row.push(cell); cell = ''; }
+    else if (ch === '\n' || ch === '\r') {
+      if (ch === '\r' && text[i + 1] === '\n') i++;
+      row.push(cell); cell = '';
+      if (row.some(c => c.trim() !== '')) rows.push(row);
+      row = [];
+    } else cell += ch;
+  }
+  row.push(cell);
+  if (row.some(c => c.trim() !== '')) rows.push(row);
+  return rows;
+}
+function buildRemarkPreview(text: string) {
+  const rows = parseCSV(text);
+  const header = (rows[0] || []).map(h => h.trim());
+  if (rows.length <= 1) { message.warning('文件中没有数据行，请填写后重新上传'); return []; }
+  const ytIdx = header.indexOf('运单号');
+  if (ytIdx === -1) { message.warning('文件缺少「运单号」列，请下载模板后按表头填写'); return []; }
+  const cuIdx = header.indexOf('客户备注');
+  const loIdx = header.indexOf('配载备注');
+  return rows.slice(1).map((r, i) => {
+    const yt = (r[ytIdx] || '').trim();
+    const cu = cuIdx >= 0 ? (r[cuIdx] || '').trim() : '';
+    const lo = loIdx >= 0 ? (r[loIdx] || '').trim() : '';
+    const actions: string[] = [];
+    if (cu) actions.push('客户备注');
+    if (lo) actions.push('配载备注');
+    return {
+      key: i + 1,
+      ytOrderNo: yt || '（空）',
+      customerRemark: cu || '-',
+      loadingRemark: lo || '-',
+      action: actions.length ? `更新${actions.join('、')}` : '不处理',
+      valid: !!yt,
+    };
+  });
+}
+function onRemarkFileBeforeUpload(file: File) {
+  remarkImportFile.value = file;
+  remarkFileList.value = [{ uid: '-1', name: file.name }];
+  if (/\.csv$/i.test(file.name)) {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const text = String(e.target?.result || '');
+      remarkPreviewRows.value = buildRemarkPreview(text);
+      if (remarkPreviewRows.value.length) message.success(`已解析文件：${file.name}，共 ${remarkPreviewRows.value.length} 条数据`);
+    };
+    reader.readAsText(file, 'utf-8');
+  } else {
+    // 非 CSV 文件（.xls/.xlsx）在原型中仅做模拟解析预览
+    remarkPreviewRows.value = [
+      { key: 1, ytOrderNo: '2607AA0142', customerRemark: '客户要求加急，务必优先配载', loadingRemark: '-', action: '更新客户备注', valid: true },
+      { key: 2, ytOrderNo: '2607AA0139', customerRemark: '-', loadingRemark: '拆单为 2 箱，配载注意分票', action: '更新配载备注', valid: true },
+      { key: 3, ytOrderNo: '2607AA0136', customerRemark: '已确认收货地址', loadingRemark: '可配载', action: '更新客户备注、配载备注', valid: true },
+      { key: 4, ytOrderNo: '（空）', customerRemark: '-', loadingRemark: '-', action: '不处理', valid: false },
+    ];
+    message.success(`已选择文件：${file.name}`);
+  }
+  return false;
+}
+function onRemarkFileRemove() {
+  remarkImportFile.value = null;
+  remarkFileList.value = [];
+  remarkPreviewRows.value = [];
+}
+function downloadRemarkTemplate() {
+  const csv = '\uFEFF运单号,客户备注,配载备注\n';
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = '备注导入模板.csv'; a.click();
+  URL.revokeObjectURL(url);
+  message.success('已下载「备注导入模板.csv」，表头：运单号、客户备注、配载备注');
+}
+function handleRemarkImport() {
+  if (!remarkImportFile.value) { message.warning('请先选择导入文件'); return; }
+  if (remarkPreviewRows.value.length === 0) { message.warning('未解析到可导入的数据，请检查文件内容'); return; }
+  const invalid = remarkPreviewRows.value.filter(r => !r.valid);
+  if (invalid.length > 0) { message.warning(`共 ${invalid.length} 条记录运单号为空，无法导入，请修正后重新上传`); return; }
+  message.success(`备注导入成功：共 ${remarkPreviewRows.value.length} 条；客户备注/配载备注为空的记录保持原样（模拟）`);
+  remarkImportOpen.value = false;
+  remarkImportFile.value = null;
+  remarkFileList.value = [];
+  remarkPreviewRows.value = [];
+}
 </script>
