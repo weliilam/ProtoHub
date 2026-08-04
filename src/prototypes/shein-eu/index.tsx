@@ -159,7 +159,7 @@ const MAPPING_SECTIONS: MappingSection[] = [
     desc: '云途基础字段 → 货代订单级字段',
     rows: [
       { key: '1', ytField: 'sorting_code', required: true, status: 'ok', sheinField: 'sortingCode', note: '分拣码' },
-      { key: '2', ytField: '客户代码', required: true, status: 'ok', sheinField: 'supplierId', note: '根据SHEIN供应商ID对应的映射关系，映射对应客户代码' },
+      { key: '2', ytField: 'com_code', required: true, status: 'ok', sheinField: 'supplierId', note: '根据SHEIN供应商ID对应的映射关系，映射对应com_code' },
       { key: '3', ytField: 'customer_order_number', required: false, status: 'ok', sheinField: 'businessOrderNo', note: '客户订单号 → 发货单号' },
       { key: '4', ytField: 'product_code', required: true, status: 'ok', sheinField: 'productChannel', note: '云途产品代码 → 货代渠道（需货代确认映射关系）' },
       { key: '5', ytField: 'country_code', required: true, status: 'ok', sheinField: 'receiverAddress.countryCode', note: '目的国二字简码' },
