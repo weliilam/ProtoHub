@@ -8,6 +8,7 @@ const execFileAsync = promisify(execFile);
 /** 支持的 AI CLI 及其非交互执行参数（prompt 经 stdin 传入，避免命令行注入） */
 const CLI_DEFS: Record<string, { bin: string[]; args: string[]; label: string }> = {
   codebuddy: { bin: ['codebuddy'], args: ['-p', '--permission-mode', 'bypassPermissions'], label: 'CodeBuddy' },
+  workbuddy: { bin: ['codebuddy'], args: ['-p', '--permission-mode', 'bypassPermissions'], label: 'WorkBuddy' },
   claude: { bin: ['claude'], args: ['-p'], label: 'Claude Code' },
   'cursor-agent': { bin: ['cursor-agent'], args: ['-p'], label: 'Cursor Agent' },
   gemini: { bin: ['gemini'], args: ['-p'], label: 'Gemini CLI' },

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Button, Input, Select, Space, Spin, Tooltip, message } from 'antd';
-import { ClearOutlined, CopyOutlined, RobotOutlined, SendOutlined, StopOutlined } from '@ant-design/icons';
+import { ClearOutlined, RobotOutlined, SendOutlined, StopOutlined } from '@ant-design/icons';
 import { api } from '../api';
 import { aiRunStore } from '../aiRunStore';
 import { aiTaskStore } from '../aiCliTask';
@@ -13,6 +13,8 @@ interface ChatMsg {
   cli?: string;
   time: number;
 }
+
+
 
 /** 渲染 AI 输出（支持 Markdown 列表） */
 function RenderOutput({ text }: { text: string }) {
@@ -501,7 +503,7 @@ export default function AiCliPanel({ selected }: { selected: EntryItem | null })
               onChange={setCli}
               placeholder="CLI"
             />
-            {cli === 'codebuddy' && (
+            {(cli === 'codebuddy' || cli === 'workbuddy') && (
               <Select
                 style={{ flex: 1, minWidth: 180 }}
                 size="small"
@@ -522,35 +524,35 @@ export default function AiCliPanel({ selected }: { selected: EntryItem | null })
               className="ph-ai-input"
               placeholder="输入指令，Enter 发送，Shift+Enter 换行…"
               value={prompt}
-              onChange={(e) => setPrompt(e.target.value)}
-              onPressEnter={(e) => {
-                if (!e.shiftKey && !running) {
-                  e.preventDefault();
-                  run();
-                }
-              }}
-              disabled={running}
-              autoSize={{ minRows: 2, maxRows: 5 }}
-            />
-            {running ? (
-              <Tooltip title="停止执行">
+                onChange={(e) => setPrompt(e.target.value)}
+                onPressEnter={(e) => {
+                  if (!e.shiftKey && !running) {
+                    e.preventDefault();
+                    run();
+                  }
+                }}
+                disabled={running}
+                autoSize={{ minRows: 2, maxRows: 5 }}
+              />
+              {running ? (
+                <Tooltip title="停止执行">
+                  <Button
+                    className="ph-ai-send"
+                    danger
+                    icon={<StopOutlined />}
+                    onClick={() => aiTaskStore.get().controller?.abort()}
+                  />
+                </Tooltip>
+              ) : (
                 <Button
                   className="ph-ai-send"
-                  danger
-                  icon={<StopOutlined />}
-                  onClick={() => aiTaskStore.get().controller?.abort()}
+                  type="primary"
+                  icon={<SendOutlined />}
+                  disabled={running}
+                  onClick={() => run()}
                 />
-              </Tooltip>
-            ) : (
-              <Button
-                className="ph-ai-send"
-                type="primary"
-                icon={<SendOutlined />}
-                disabled={running}
-                onClick={() => run()}
-              />
-            )}
-          </div>
+              )}
+            </div>
         </div>
       </div>
     </>
