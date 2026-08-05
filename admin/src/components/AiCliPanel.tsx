@@ -383,6 +383,26 @@ export default function AiCliPanel({ selected }: { selected: EntryItem | null })
 1. 安装：npm install -g @tencent-ai/codebuddy-code（请勿中断）
 2. 验证：codebuddy --version
 3. 安装完成后回复我"WorkBuddy CLI 已安装"`,
+    claude: `请帮我安装 Claude Code CLI：
+1. 安装：npm install -g @anthropic-ai/claude-code（请勿中断）
+2. 验证：claude --version
+3. 安装完成后回复我"Claude Code 已安装"`,
+    gemini: `请帮我安装 Gemini CLI：
+1. 安装：npm install -g @google/gemini-cli（请勿中断）
+2. 验证：gemini --version
+3. 安装完成后回复我"Gemini CLI 已安装"`,
+    codex: `请帮我安装 OpenAI Codex CLI：
+1. 安装：npm install -g @openai/codex（请勿中断）
+2. 验证：codex --version
+3. 安装完成后回复我"Codex 已安装"`,
+    'cursor-agent': `请帮我安装 Cursor Agent CLI：
+1. 从 Cursor IDE 设置中启用 Agent 命令行工具，或搜索 cursor-agent npm 包安装
+2. 验证：cursor-agent --version
+3. 安装完成后回复我"Cursor Agent 已安装"`,
+    opencode: `请帮我安装 OpenCode CLI：
+1. 安装：npm install -g opencode（请勿中断）
+2. 验证：opencode --version
+3. 安装完成后回复我"OpenCode 已安装"`,
   };
 
   /** 各 CLI 的授权指引（已安装但未授权时显示） */
@@ -394,6 +414,21 @@ export default function AiCliPanel({ selected }: { selected: EntryItem | null })
     workbuddy: `请帮我完成 WorkBuddy CLI 授权：
 运行 codebuddy，按提示选择站点，浏览器自动打开后扫码或账号登录即可完成授权。
 授权完成后回复我"WorkBuddy CLI 已授权"。`,
+    claude: `请帮我完成 Claude Code CLI 授权：
+运行 claude，按提示完成 Anthropic 账号登录或配置 ANTHROPIC_API_KEY 环境变量。
+授权完成后回复我"Claude Code 已授权"。`,
+    gemini: `请帮我完成 Gemini CLI 授权：
+运行 gemini，按提示完成 Google 账号登录或配置 GEMINI_API_KEY 环境变量。
+授权完成后回复我"Gemini CLI 已授权"。`,
+    codex: `请帮我完成 OpenAI Codex CLI 授权：
+运行 codex，按提示完成 OpenAI 账号登录或配置 OPENAI_API_KEY 环境变量。
+授权完成后回复我"Codex 已授权"。`,
+    'cursor-agent': `请帮我完成 Cursor Agent CLI 授权：
+确保 Cursor IDE 已登录并完成授权，cursor-agent 会自动继承 IDE 的登录态。
+授权完成后回复我"Cursor Agent 已授权"。`,
+    opencode: `请帮我完成 OpenCode CLI 授权：
+运行 opencode，按提示完成账号登录或 API Key 配置。
+授权完成后回复我"OpenCode 已授权"。`,
   };
 
   /** 复制指引文本到剪贴板 */
