@@ -45,6 +45,7 @@ export interface GitLogItem {
 export interface CliStatus {
   label: string;
   available: boolean;
+  authorized: boolean;
 }
 
 export interface AiModelOption {

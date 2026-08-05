@@ -1152,6 +1152,22 @@ body {
   background: var(--ph-gradient-soft);
 }
 
+/* AI CLI 引导面板（未安装 / 需授权时显示） */
+.ph-ai-guide {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px;
+  border: 1px dashed var(--ph-border);
+  border-radius: 8px;
+  background: var(--ph-gradient-soft);
+}
+.ph-ai-guide-text {
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--ph-text-secondary);
+}
+
 /* AI 欢迎卡（空会话时展示） */
 .ph-ai-welcome {
   margin: auto;

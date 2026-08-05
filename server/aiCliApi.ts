@@ -1,6 +1,9 @@
 import type { Plugin } from 'vite';
 import { spawn, execFile, ChildProcess } from 'child_process';
 import { promisify } from 'util';
+import { existsSync } from 'fs';
+import { homedir } from 'os';
+import { join } from 'path';
 import { sendJson, sendError, readJsonBody, getPathname } from './utils';
 
 const execFileAsync = promisify(execFile);
@@ -45,6 +48,22 @@ async function which(bin: string): Promise<boolean> {
   } catch {
     return false;
   }
+}
+
+/**
+ * 检测 CLI 是否已完成授权（纯文件 IO，毫秒级）。
+ * - codebuddy/workbuddy：检查 ~/.codebuddy/user-state.json 是否存在（CLI 首次初始化后生成）
+ * - 其他 CLI：暂不做授权检测，返回 true（取决于各 CLI 自身机制）
+ */
+function checkAuthorized(cliKey: string): boolean {
+  if (cliKey === 'codebuddy' || cliKey === 'workbuddy') {
+    const home = homedir();
+    // user-state.json 是 codebuddy CLI 首次启动/初始化时生成的配置文件，
+    // 其存在即表示 CLI 已完成基本初始化（含授权）
+    return existsSync(join(home, '.codebuddy', 'user-state.json'));
+  }
+  // 其他 CLI 暂不主动检测授权状态
+  return true;
 }
 
 /** 全局互斥锁：同一时刻只允许一个 AI CLI 在跑，避免并发改代码互相覆盖 */
@@ -198,7 +217,9 @@ export function aiCliApiPlugin(): Plugin {
             const entries = await Promise.all(
               Object.entries(CLI_DEFS).map(async ([key, def]) => {
                 const results = await Promise.all(def.bin.map((b) => which(b)));
-                return [key, { label: def.label, available: results.some(Boolean) }] as const;
+                const available = results.some(Boolean);
+                const authorized = available && checkAuthorized(key);
+                return [key, { label: def.label, available, authorized }] as const;
               }),
             );
             return sendJson(res, {

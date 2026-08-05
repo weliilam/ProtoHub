@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Button, Input, Select, Space, Spin, Tooltip, message } from 'antd';
-import { ClearOutlined, RobotOutlined, SendOutlined, StopOutlined } from '@ant-design/icons';
+import { ClearOutlined, CopyOutlined, RobotOutlined, SendOutlined, StopOutlined } from '@ant-design/icons';
 import { api } from '../api';
 import { aiRunStore } from '../aiRunStore';
 import { aiTaskStore } from '../aiCliTask';
@@ -373,9 +373,53 @@ export default function AiCliPanel({ selected }: { selected: EntryItem | null })
     },
   ];
 
+  /** 各 CLI 的安装指引（未安装时显示） */
+  const INSTALL_GUIDES: Record<string, string> = {
+    codebuddy: `请帮我安装 CodeBuddy CLI：
+1. 安装：npm install -g @tencent-ai/codebuddy-code（请勿中断，否则会留下损坏的包文件）
+2. 验证：codebuddy --version
+3. 安装完成后回复我"CodeBuddy 已安装"`,
+    workbuddy: `请帮我安装 WorkBuddy CLI（底层与 CodeBuddy 共用）：
+1. 安装：npm install -g @tencent-ai/codebuddy-code（请勿中断）
+2. 验证：codebuddy --version
+3. 安装完成后回复我"WorkBuddy CLI 已安装"`,
+  };
+
+  /** 各 CLI 的授权指引（已安装但未授权时显示） */
+  const AUTH_GUIDES: Record<string, string> = {
+    codebuddy: `请帮我完成 CodeBuddy CLI 授权：
+运行 codebuddy，按提示选择站点（国内站 / International Site），
+浏览器会自动打开，扫码或账号登录即可完成授权，无需任何凭据。
+授权完成后回复我"CodeBuddy 已授权"。`,
+    workbuddy: `请帮我完成 WorkBuddy CLI 授权：
+运行 codebuddy，按提示选择站点，浏览器自动打开后扫码或账号登录即可完成授权。
+授权完成后回复我"WorkBuddy CLI 已授权"。`,
+  };
+
+  /** 复制指引文本到剪贴板 */
+  const copyGuide = async (text: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+    } catch {
+      const ta = document.createElement('textarea');
+      ta.value = text;
+      ta.style.position = 'fixed';
+      ta.style.opacity = '0';
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand('copy');
+      document.body.removeChild(ta);
+    }
+    message.success('指引已复制，粘贴给 AI 助手即可自动执行');
+  };
+
   const options = Object.entries(status).map(([key, v]) => ({
     value: key,
-    label: `${v.label}${v.available ? '' : '（未安装）'}`,
+    label: !v.available
+      ? `${v.label}（未安装）`
+      : !v.authorized
+        ? `${v.label}（需授权）`
+        : v.label,
     disabled: !v.available,
   }));
 
@@ -519,11 +563,42 @@ export default function AiCliPanel({ selected }: { selected: EntryItem | null })
               />
             )}
           </div>
-          <div className="ph-ai-input-row">
-            <Input.TextArea
-              className="ph-ai-input"
-              placeholder="输入指令，Enter 发送，Shift+Enter 换行…"
-              value={prompt}
+          {!cli ? (
+            <div className="ph-ai-input-row">
+              <Input.TextArea
+                className="ph-ai-input"
+                placeholder="请先选择 CLI…"
+                value={prompt}
+                disabled
+                autoSize={{ minRows: 2, maxRows: 5 }}
+              />
+            </div>
+          ) : !status[cli]?.available ? (
+            <div className="ph-ai-guide">
+              <div className="ph-ai-guide-text">
+                {status[cli]?.label} 尚未安装，无法使用 AI 助手。点击下方按钮复制安装指引，粘贴给 AI 助手即可自动安装。
+              </div>
+              <Button block type="primary" icon={<CopyOutlined />}
+                onClick={() => copyGuide(INSTALL_GUIDES[cli] || `请帮我安装 ${status[cli]?.label} CLI。`)}>
+                复制安装指引
+              </Button>
+            </div>
+          ) : !status[cli]?.authorized ? (
+            <div className="ph-ai-guide">
+              <div className="ph-ai-guide-text">
+                {status[cli]?.label} 已安装但尚未授权，无法执行 AI 任务。点击下方按钮复制授权指引，粘贴给 AI 助手即可完成授权。
+              </div>
+              <Button block type="primary" icon={<CopyOutlined />}
+                onClick={() => copyGuide(AUTH_GUIDES[cli] || `请帮我完成 ${status[cli]?.label} CLI 的登录授权。`)}>
+                复制授权指引
+              </Button>
+            </div>
+          ) : (
+            <div className="ph-ai-input-row">
+              <Input.TextArea
+                className="ph-ai-input"
+                placeholder="输入指令，Enter 发送，Shift+Enter 换行…"
+                value={prompt}
                 onChange={(e) => setPrompt(e.target.value)}
                 onPressEnter={(e) => {
                   if (!e.shiftKey && !running) {
@@ -553,6 +628,7 @@ export default function AiCliPanel({ selected }: { selected: EntryItem | null })
                 />
               )}
             </div>
+          )}
         </div>
       </div>
     </>
