@@ -420,7 +420,6 @@ export default function AiCliPanel({ selected }: { selected: EntryItem | null })
       : !v.authorized
         ? `${v.label}（需授权）`
         : v.label,
-    disabled: !v.available,
   }));
 
   return (
