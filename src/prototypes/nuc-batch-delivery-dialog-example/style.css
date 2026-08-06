@@ -1,0 +1,561 @@
+/* ========================= NUC 批量下单 - 选择交货信息弹框 样式 ========================= */
+
+.nuc-bdd-page {
+  padding: 24px;
+  background: #f5f6fa;
+  min-height: 100vh;
+  font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Microsoft YaHei', sans-serif;
+}
+
+.nuc-bdd-header {
+  margin-bottom: 16px;
+}
+
+.nuc-bdd-title {
+  font-size: 18px;
+  font-weight: 600;
+  color: #1a1a2e;
+  margin: 0 0 6px;
+}
+
+.nuc-bdd-subtitle {
+  font-size: 13px;
+  color: #6b7280;
+  margin: 0;
+}
+
+/* 场景切换工具栏 */
+.nuc-bdd-toolbar {
+  background: #fff;
+  border-radius: 8px;
+  padding: 14px 18px;
+  margin-bottom: 14px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.nuc-bdd-toolbar-label {
+  font-size: 13px;
+  color: #4b5563;
+  margin-right: 4px;
+}
+
+.nuc-bdd-toolbar-divider {
+  width: 1px;
+  height: 18px;
+  background: #e5e7eb;
+  margin: 0 4px;
+}
+
+/* 弹框预览画布 */
+.nuc-bdd-canvas {
+  background: linear-gradient(135deg, #eef2f7 0%, #f8fafc 100%);
+  border-radius: 12px;
+  padding: 48px 24px;
+  min-height: 560px;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+}
+
+/* 自定义 Modal 容器（不使用 antd Modal 以便在原型画布内自由布局） */
+.nuc-bdd-modal {
+  width: 560px;
+  background: #fff;
+  border-radius: 8px;
+  box-shadow: 0 12px 32px rgba(15, 23, 42, 0.12), 0 2px 6px rgba(15, 23, 42, 0.06);
+  overflow: hidden;
+  animation: nuc-bdd-modal-in 0.18s ease-out;
+}
+
+@keyframes nuc-bdd-modal-in {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.nuc-bdd-modal-header {
+  padding: 16px 24px;
+  border-bottom: 1px solid #f0f1f5;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.nuc-bdd-modal-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: #1a1a2e;
+  margin: 0;
+}
+
+.nuc-bdd-modal-close {
+  width: 28px;
+  height: 28px;
+  border-radius: 4px;
+  border: none;
+  background: transparent;
+  color: #9ca3af;
+  font-size: 18px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s;
+}
+
+.nuc-bdd-modal-close:hover {
+  background: #f3f4f6;
+  color: #4b5563;
+}
+
+.nuc-bdd-modal-body {
+  padding: 28px 32px 8px;
+}
+
+/* 表单字段 */
+.nuc-bdd-field {
+  margin-bottom: 22px;
+}
+
+.nuc-bdd-field-label {
+  display: block;
+  font-size: 13px;
+  color: #374151;
+  margin-bottom: 8px;
+}
+
+.nuc-bdd-required {
+  color: #ef4444;
+  margin-right: 2px;
+}
+
+/* 单选 */
+.nuc-bdd-radio-group {
+  display: flex;
+  gap: 28px;
+}
+
+.nuc-bdd-radio {
+  display: inline-flex;
+  align-items: center;
+  cursor: pointer;
+  font-size: 14px;
+  color: #374151;
+  user-select: none;
+}
+
+.nuc-bdd-radio input {
+  margin-right: 6px;
+  accent-color: #1f6feb;
+  width: 14px;
+  height: 14px;
+}
+
+.nuc-bdd-radio.selected {
+  color: #1f6feb;
+  font-weight: 500;
+}
+
+/* 自定义下拉框 */
+.nuc-bdd-select {
+  box-sizing: border-box;
+  width: 100%;
+  height: 36px;
+  border: 1px solid #d1d5db;
+  border-radius: 4px;
+  background: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 11px;
+  font-size: 14px;
+  color: #6b7280;
+  cursor: pointer;
+  transition: border-color 0.15s, box-shadow 0.15s;
+  position: relative;
+}
+
+.nuc-bdd-select:hover {
+  border-color: #9ca3af;
+}
+
+.nuc-bdd-select.disabled {
+  background: #f9fafb;
+  cursor: not-allowed;
+}
+
+.nuc-bdd-select.error {
+  border-color: #ef4444;
+}
+
+.nuc-bdd-select.error:hover {
+  border-color: #ef4444;
+}
+
+.nuc-bdd-select-arrow {
+  color: #9ca3af;
+  font-size: 10px;
+  transition: transform 0.2s;
+}
+
+.nuc-bdd-select.open .nuc-bdd-select-arrow {
+  transform: rotate(180deg);
+}
+
+/* 下拉框 dropdown 浮层 */
+.nuc-bdd-select-dropdown {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 4px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+  max-height: 220px;
+  overflow-y: auto;
+  z-index: 10;
+}
+
+.nuc-bdd-select-option {
+  padding: 8px 12px;
+  font-size: 14px;
+  color: #374151;
+  cursor: pointer;
+}
+
+.nuc-bdd-select-option:hover {
+  background: #f3f4f6;
+}
+
+.nuc-bdd-select-option.selected {
+  background: #eef4ff;
+  color: #1f6feb;
+}
+
+.nuc-bdd-select-empty {
+  padding: 18px 12px;
+  text-align: center;
+  color: #9ca3af;
+  font-size: 13px;
+}
+
+/* 错误提示文字（保留现有规范） */
+.nuc-bdd-field-error {
+  margin-top: 4px;
+  font-size: 12px;
+  color: #ef4444;
+}
+
+/* 【新增】错误提示卡片 */
+.nuc-bdd-alert {
+  width: 100%;
+  box-sizing: border-box;
+  margin-top: 10px;
+  padding: 12px 14px;
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  border-radius: 6px;
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.nuc-bdd-alert-icon {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  background: #ef4444;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-top: 1px;
+}
+
+.nuc-bdd-alert-content {
+  flex: 1;
+  min-width: 0;
+}
+
+.nuc-bdd-alert-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: #991b1b;
+  margin: 0 0 4px;
+  line-height: 1.5;
+}
+
+.nuc-bdd-alert-desc {
+  font-size: 12px;
+  color: #b91c1c;
+  line-height: 1.6;
+  margin: 0;
+}
+
+.nuc-bdd-alert-actions {
+  margin-top: 8px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.nuc-bdd-link {
+  font-size: 12px;
+  color: #1f6feb;
+  background: transparent;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  transition: color 0.15s;
+}
+
+.nuc-bdd-link:hover {
+  color: #1857c4;
+  text-decoration: underline;
+}
+
+.nuc-bdd-link.primary {
+  font-weight: 600;
+}
+
+.nuc-bdd-link.muted {
+  color: #6b7280;
+  font-weight: 400;
+}
+
+.nuc-bdd-link.muted:hover {
+  color: #374151;
+}
+
+/* 日期选择 */
+.nuc-bdd-date-input {
+  box-sizing: border-box;
+  width: 100%;
+  height: 36px;
+  border: 1px solid #d1d5db;
+  border-radius: 4px;
+  background: #fff;
+  display: flex;
+  align-items: center;
+  padding: 0 11px;
+  font-size: 14px;
+  color: #374151;
+  cursor: pointer;
+}
+
+.nuc-bdd-date-input::before {
+  content: '🕐';
+  margin-right: 8px;
+  font-size: 14px;
+}
+
+/* Footer */
+.nuc-bdd-modal-footer {
+  padding: 14px 24px;
+  border-top: 1px solid #f0f1f5;
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  background: #fafbfc;
+}
+
+.nuc-bdd-btn {
+  height: 34px;
+  padding: 0 18px;
+  border-radius: 4px;
+  font-size: 14px;
+  cursor: pointer;
+  transition: all 0.15s;
+  border: 1px solid transparent;
+}
+
+.nuc-bdd-btn-default {
+  background: #fff;
+  border-color: #d1d5db;
+  color: #374151;
+}
+
+.nuc-bdd-btn-default:hover {
+  border-color: #9ca3af;
+  color: #111827;
+}
+
+.nuc-bdd-btn-primary {
+  background: #1f6feb;
+  border-color: #1f6feb;
+  color: #fff;
+}
+
+.nuc-bdd-btn-primary:hover:not(:disabled) {
+  background: #1857c4;
+  border-color: #1857c4;
+}
+
+.nuc-bdd-btn-primary:disabled {
+  background: #93c5fd;
+  border-color: #93c5fd;
+  cursor: not-allowed;
+}
+
+/* Tooltip 模拟（查看示例链接 hover） */
+.nuc-bdd-tooltip {
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 0;
+  background: #1f2937;
+  color: #fff;
+  padding: 8px 10px;
+  border-radius: 4px;
+  font-size: 12px;
+  white-space: nowrap;
+  z-index: 20;
+}
+
+.nuc-bdd-tooltip::after {
+  content: '';
+  position: absolute;
+  top: 100%;
+  left: 18px;
+  border: 4px solid transparent;
+  border-top-color: #1f2937;
+}
+
+.nuc-bdd-tooltip-wrap {
+  position: relative;
+  display: inline-flex;
+}
+
+/* 场景说明面板 */
+.nuc-bdd-scenario-note {
+  margin-top: 16px;
+  background: #fff;
+  border-radius: 8px;
+  padding: 14px 18px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+  font-size: 13px;
+  color: #4b5563;
+  line-height: 1.7;
+}
+
+.nuc-bdd-scenario-note strong {
+  color: #1a1a2e;
+}
+
+.nuc-bdd-scenario-note ul {
+  margin: 6px 0 0;
+  padding-left: 18px;
+}
+
+.nuc-bdd-scenario-note code {
+  background: #f3f4f6;
+  padding: 1px 6px;
+  border-radius: 3px;
+  font-family: 'SF Mono', Consolas, monospace;
+  font-size: 12px;
+  color: #1f6feb;
+}
+
+/* Tag 角标 - 场景标记 */
+.nuc-bdd-scenario-tag {
+  display: inline-block;
+  padding: 2px 8px;
+  font-size: 11px;
+  border-radius: 10px;
+  margin-left: 8px;
+  font-weight: 500;
+}
+
+.nuc-bdd-scenario-tag.normal {
+  background: #d1fae5;
+  color: #047857;
+}
+
+.nuc-bdd-scenario-tag.error {
+  background: #fee2e2;
+  color: #b91c1c;
+}
+
+/* ==================== 支付宝拦截弹框 ==================== */
+.nuc-bdd-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: nuc-bdd-fade-in 0.2s ease-out;
+}
+
+@keyframes nuc-bdd-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.nuc-bdd-alipay-modal {
+  width: 420px;
+  background: #fff;
+  border-radius: 8px;
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.2);
+  overflow: hidden;
+  animation: nuc-bdd-modal-in 0.2s ease-out;
+}
+
+.nuc-bdd-alipay-header {
+  padding: 24px 32px 12px;
+  font-size: 16px;
+  font-weight: 600;
+  color: #1a1a2e;
+}
+
+.nuc-bdd-alipay-body {
+  padding: 0 32px 20px;
+  text-align: left;
+}
+
+.nuc-bdd-alipay-body p {
+  font-size: 15px;
+  color: #333;
+  line-height: 1.7;
+  margin: 0;
+}
+
+.nuc-bdd-alipay-footer {
+  padding: 0 32px 28px;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.nuc-bdd-alipay-footer .nuc-bdd-btn {
+  min-width: 100px;
+  height: 38px;
+  font-size: 15px;
+  border-radius: 6px;
+}
+
+.nuc-bdd-btn-alipay {
+  background: #198484;
+  border-color: #198484;
+  color: #fff;
+}
+.nuc-bdd-btn-alipay:hover {
+  background: #1fa0a0;
+  border-color: #1fa0a0;
+}

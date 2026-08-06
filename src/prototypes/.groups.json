@@ -1,0 +1,76 @@
+[
+  {
+    "id": "主页",
+    "name": "主页",
+    "prototypes": [
+      "proto-msecxo8k"
+    ]
+  },
+  {
+    "id": "ioss",
+    "name": "OMS",
+    "prototypes": [
+      "ioss-tax-number-management",
+      "amz-ioss-order-restrict",
+      "ioss-internal-management",
+      "sku-manage"
+    ]
+  },
+  {
+    "id": "b2b-oms",
+    "name": "B2B-OMS",
+    "prototypes": [
+      "b2b-order-list",
+      "b2b-order-fee-detail",
+      "address-audit-status-import",
+      "b2b-warehouse-address"
+    ]
+  },
+  {
+    "id": "b2b-board",
+    "name": "B2B看板",
+    "prototypes": []
+  },
+  {
+    "id": "dw",
+    "name": "TMS",
+    "prototypes": [
+      "dw-delivery-window"
+    ]
+  },
+  {
+    "id": "lbu",
+    "name": "其他",
+    "prototypes": [
+      "lbu-b2b-special-price",
+      "lbu-b2b-auto-reprice"
+    ]
+  },
+  {
+    "id": "nuc",
+    "name": "NUC",
+    "prototypes": [
+      "nuc-batch-delivery-dialog"
+    ]
+  },
+  {
+    "id": "spms",
+    "name": "SPMS",
+    "prototypes": []
+  },
+  {
+    "id": "poms",
+    "name": "POMS",
+    "prototypes": [
+      "shein-eu"
+    ]
+  },
+  {
+    "id": "示例",
+    "name": "示例",
+    "prototypes": [
+      "nuc-batch-delivery-dialog-example",
+      "ioss-tax-number-management-example"
+    ]
+  }
+]
