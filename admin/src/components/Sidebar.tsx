@@ -941,7 +941,7 @@ export default function Sidebar(props: SidebarProps) {
       <div className="ph-sidebar-body">
         {tab === 'prototype' && (
           <>
-            <div style={{ display: 'flex', gap: 4, marginBottom: 8 }}>
+            <div className="ph-create-actions">
               <Button block size="small" icon={<PlusOutlined />} onClick={() => handleCreate('prototype')}>
                 新建原型
               </Button>

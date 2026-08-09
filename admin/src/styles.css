@@ -325,6 +325,19 @@ body {
   padding: 8px;
 }
 
+/* 「新建原型 / 新建分组」操作区固定吸顶，滚动列表时不遮挡 */
+.ph-create-actions {
+  position: sticky;
+  top: -8px;
+  z-index: 20;
+  display: flex;
+  gap: 4px;
+  margin: -8px -8px 8px;
+  padding: 8px;
+  background: var(--ph-panel-bg);
+  border-bottom: 1px solid var(--ph-border-light);
+}
+
 /* Tabs 仅作标签切换，隐藏空内容区，避免占满空间产生大片空白 */
 .ph-sidebar-tabs .ant-tabs-content-holder {
   display: none;

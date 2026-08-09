@@ -1,0 +1,511 @@
+/* ============================================================
+   Hatch Client 模式 —— WinForms 客户端视觉主题
+   命名空间 .client-theme，避免污染其它原型
+   依据 spms-repo 实测：微软雅黑 9pt / Control灰 #F0F0F0 /
+   WhiteSmoke #F5F5F5 筛选面板 / 行高 23px / 选中蓝
+   ============================================================ */
+
+.client-theme,
+.client-theme body {
+  font-family: 'Microsoft YaHei', '微软雅黑', 'PingFang SC', 'Segoe UI', sans-serif;
+}
+
+/* ── 窗体根容器：模拟 WinForms Form（灰底） ── */
+.client-theme .client-form {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+  min-height: 480px;
+  background: #f0f0f0;
+  color: #000;
+  font-size: 12px;
+  overflow: hidden;
+}
+
+.client-theme .client-form * {
+  box-sizing: border-box;
+}
+
+/* ══════════ 顶部工具栏 ToolStrip（27px 高） ══════════ */
+.client-theme .client-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  height: 27px;
+  padding: 0 4px;
+  background: linear-gradient(to bottom, #fdfdfe 0%, #eef0f2 45%, #e1e3e6 100%);
+  border-bottom: 1px solid #a8a8a8;
+  flex-shrink: 0;
+  user-select: none;
+}
+
+.client-theme .client-toolbar-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  height: 23px;
+  padding: 0 6px;
+  border: 1px solid transparent;
+  background: transparent;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: bold;
+  color: #1a1a1a;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.client-theme .client-toolbar-btn img {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+}
+
+.client-theme .client-toolbar-btn:hover {
+  border-color: #7da2ce;
+  background: linear-gradient(to bottom, #fff8e0, #ffe9a8);
+}
+
+.client-theme .client-toolbar-btn:active {
+  border-color: #569de5;
+  background: linear-gradient(to bottom, #e5c365, #f2d98c);
+}
+
+.client-theme .client-toolbar-btn.is-disabled {
+  color: #9a9a9a;
+  cursor: default;
+}
+
+.client-theme .client-toolbar-btn.is-disabled:hover {
+  border-color: transparent;
+  background: transparent;
+}
+
+.client-theme .client-toolbar-sep {
+  width: 1px;
+  height: 16px;
+  margin: 0 4px;
+  background: #a8a8a8;
+  border-left: 1px solid #fff;
+  flex-shrink: 0;
+}
+
+/* ══════════ 筛选面板（WhiteSmoke #F5F5F5） ══════════ */
+.client-theme .client-filter {
+  padding: 12px 16px 10px;
+  background: #f5f5f5;
+  border-bottom: 1px solid #d5d5d5;
+  flex-shrink: 0;
+  user-select: none;
+}
+
+.client-theme .client-filter-row {
+  display: flex;
+  align-items: flex-end;
+  gap: 18px;
+  flex-wrap: wrap;
+}
+
+.client-theme .client-filter-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.client-theme .client-filter-item > label {
+  min-width: 68px;
+  text-align: right;
+  font-size: 12px;
+  color: #1a1a1a;
+  white-space: nowrap;
+  line-height: 25px;
+}
+
+/* 紧凑模式：减少上下内边距 */
+.client-theme .client-filter.is-compact {
+  padding: 6px 16px 6px;
+}
+
+/* WinForms 风格输入/下拉控件覆盖 */
+.client-theme .client-filter .client-input,
+.client-theme .client-filter .client-select {
+  height: 25px;
+  padding: 2px 6px;
+  border: 1px solid #7f9db9;
+  background: #fff;
+  font-family: inherit;
+  font-size: 12px;
+  color: #1a1a1a;
+  outline: none;
+}
+
+.client-theme .client-filter .client-input {
+  width: 150px;
+}
+
+.client-theme .client-filter .client-input:focus,
+.client-theme .client-filter .client-select:focus {
+  border-color: #569de5;
+}
+
+.client-theme .client-filter select.client-select {
+  width: 143px;
+  appearance: none;
+  -webkit-appearance: none;
+  background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%23444'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 6px center;
+  padding-right: 18px;
+  cursor: pointer;
+}
+
+/* 查询按钮（WinForms 凸起按钮 + 图标） */
+.client-theme .client-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  height: 25px;
+  padding: 0 14px;
+  border: 1px solid #7f9db9;
+  border-radius: 2px;
+  background: linear-gradient(to bottom, #f8fafc, #dde3e9);
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: bold;
+  color: #1a1a1a;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.client-theme .client-btn img {
+  width: 16px;
+  height: 16px;
+}
+
+.client-theme .client-btn:hover {
+  background: linear-gradient(to bottom, #eaf3fb, #c9ddf2);
+}
+
+.client-theme .client-btn:active {
+  background: linear-gradient(to bottom, #b8cfe8, #d6e4f2);
+  border-color: #569de5;
+}
+
+/* ══════════ 数据网格 DataGridView ══════════ */
+.client-theme .client-grid-wrap {
+  flex: 1;
+  overflow: auto;
+  background: #fff;
+  border-bottom: 1px solid #d5d5d5;
+}
+
+.client-theme .client-grid {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+  font-family: inherit;
+  font-size: 12px;
+}
+
+.client-theme .client-grid th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  height: 24px;
+  padding: 0 6px;
+  border: 1px solid #b6b6b6;
+  background: linear-gradient(to bottom, #f0f0f0, #e3e3e3);
+  color: #1a1a1a;
+  font-weight: normal;
+  text-align: left;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  user-select: none;
+}
+
+.client-theme .client-grid td {
+  height: 23px;
+  padding: 0 6px;
+  border: 1px solid #d8d8d8;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.client-theme .client-grid tbody tr:hover td {
+  background: #f4f9ff;
+}
+
+.client-theme .client-grid tbody tr.client-row-selected td {
+  background: #2f78c6;
+  color: #fff;
+}
+
+.client-theme .client-grid .client-col-check {
+  width: 30px;
+  text-align: center;
+}
+
+.client-theme .client-grid .client-cell-check {
+  width: 13px;
+  height: 13px;
+  border: 1px solid #5f6d7a;
+  background: #fff;
+  display: inline-block;
+  vertical-align: middle;
+  cursor: pointer;
+}
+
+.client-theme .client-grid .client-cell-check.is-checked {
+  background: #fff url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='9' height='9' viewBox='0 0 10 10'%3E%3Cpath d='M1 5l3 3 5-6' fill='none' stroke='%23000' stroke-width='1.6'/%3E%3C/svg%3E") no-repeat center;
+}
+
+/* 单元格居中（复选框、状态列等） */
+.client-theme .client-grid .center {
+  text-align: center;
+}
+
+/* 超链接单元格（操作列） */
+.client-theme .client-grid td a.client-link {
+  color: #0758a3;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.client-theme .client-grid td a.client-link:hover {
+  color: #e63030;
+}
+
+/* ══════════ 底部状态栏 / 分页 ══════════ */
+.client-theme .client-pager {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  height: 30px;
+  padding: 0 12px;
+  background: #f0f0f0;
+  border-top: 1px solid #d5d5d5;
+  font-size: 12px;
+  color: #1a1a1a;
+  flex-shrink: 0;
+  user-select: none;
+}
+
+.client-theme .client-pager .client-pager-btn {
+  min-width: 22px;
+  height: 21px;
+  padding: 0 6px;
+  border: 1px solid #7f9db9;
+  border-radius: 2px;
+  background: #f8fafc;
+  font-family: inherit;
+  font-size: 12px;
+  color: #1a1a1a;
+  cursor: pointer;
+}
+
+.client-theme .client-pager .client-pager-btn:hover {
+  background: #eaf3fb;
+}
+
+.client-theme .client-pager .client-pager-btn.is-current {
+  background: #2f78c6;
+  color: #fff;
+  border-color: #2f78c6;
+}
+
+.client-theme .client-pager select.client-select {
+  height: 21px;
+  font-size: 12px;
+  font-family: inherit;
+}
+
+/* ══════════ ClientWindow 弹窗（WinForms 窗体） ══════════ */
+.client-theme .client-window-mask {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  background: rgba(0, 0, 0, 0.28);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.client-theme .client-window {
+  display: flex;
+  flex-direction: column;
+  min-width: 520px;
+  min-height: 320px;
+  background: #f0f0f0;
+  border: 1px solid #8f8f8f;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+}
+
+.client-theme .client-window-titlebar {
+  display: flex;
+  align-items: center;
+  height: 28px;
+  padding: 0 6px 0 10px;
+  background: linear-gradient(to bottom, #eef1f4, #dfe3e8);
+  border-bottom: 1px solid #b6b6b6;
+  user-select: none;
+}
+
+.client-theme .client-window-titlebar .client-window-icon {
+  width: 16px;
+  height: 16px;
+  margin-right: 6px;
+}
+
+.client-theme .client-window-titlebar .client-window-title {
+  flex: 1;
+  font-size: 12px;
+  color: #1a1a1a;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.client-theme .client-window-titlebar .client-window-btn {
+  width: 24px;
+  height: 22px;
+  border: 1px solid transparent;
+  background: transparent;
+  font-size: 12px;
+  color: #333;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.client-theme .client-window-titlebar .client-window-btn:hover {
+  background: #e81123;
+  color: #fff;
+  border-color: #e81123;
+}
+
+.client-theme .client-window-body {
+  flex: 1;
+  overflow: auto;
+  padding: 12px;
+  background: #f0f0f0;
+}
+
+.client-theme .client-window-footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  height: 46px;
+  padding: 0 12px;
+  border-top: 1px solid #d5d5d5;
+  background: #f0f0f0;
+  flex-shrink: 0;
+}
+
+/* ══════════ 两列表单 ClientForm（Label+输入 两列） ══════════ */
+.client-theme .client-form-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px 24px;
+}
+
+.client-theme .client-form-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.client-theme .client-form-item > label {
+  width: 110px;
+  text-align: right;
+  font-size: 12px;
+  color: #1a1a1a;
+  flex-shrink: 0;
+}
+
+.client-theme .client-form-item .client-input,
+.client-theme .client-form-item .client-select {
+  flex: 1;
+  height: 25px;
+  padding: 2px 6px;
+  border: 1px solid #7f9db9;
+  background: #fff;
+  font-family: inherit;
+  font-size: 12px;
+  color: #1a1a1a;
+  outline: none;
+}
+
+.client-theme .client-form-item .client-input:focus,
+.client-theme .client-form-item .client-select:focus {
+  border-color: #569de5;
+}
+
+.client-theme .client-form-item select.client-select {
+  appearance: none;
+  -webkit-appearance: none;
+  background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%23444'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 6px center;
+  padding-right: 18px;
+  cursor: pointer;
+}
+
+/* 只读展示 */
+.client-theme .client-form-item .client-static {
+  flex: 1;
+  font-size: 12px;
+  color: #1a1a1a;
+  line-height: 25px;
+}
+
+/* ══════════ antd 组件覆盖（client 模式内） ══════════ */
+.client-theme .ant-btn {
+  font-family: inherit;
+  font-size: 12px;
+  border-radius: 2px;
+  height: 25px;
+}
+
+.client-theme .ant-btn-primary {
+  background: #2f78c6;
+}
+
+.client-theme .ant-input,
+.client-theme .ant-input-affix-wrapper,
+.client-theme .ant-select-selector {
+  border-radius: 2px !important;
+  font-family: inherit !important;
+  font-size: 12px !important;
+}
+
+/* 滚动条（WinForms 窄滚动条观感） */
+.client-theme ::-webkit-scrollbar {
+  width: 14px;
+  height: 14px;
+}
+
+.client-theme ::-webkit-scrollbar-thumb {
+  background: #c2c7cc;
+  border: 2px solid #f0f0f0;
+}
+
+.client-theme ::-webkit-scrollbar-thumb:hover {
+  background: #a8aeb5;
+}
+
+.client-theme ::-webkit-scrollbar-track {
+  background: #f0f0f0;
+}
+
+/* 禁用文本选中闪烁 */
+.client-theme * {
+  -webkit-tap-highlight-color: transparent;
+}

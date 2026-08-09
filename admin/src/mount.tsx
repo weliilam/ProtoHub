@@ -75,6 +75,27 @@ async function bootstrap() {
     const mod = await import(/* @vite-ignore */ window.__ENTRY__);
     const App = mod.default;
     if (!App) throw new Error(`${window.__ENTRY__} 缺少默认导出组件`);
+
+    // ── client 模式（WinForms 客户端视觉）：proto.config.json 声明 "ui": "client" ──
+    // 用 ClientShell（.client-theme 命名空间）包裹原型，注入客户端主题 CSS。
+    // 未声明 client 的原型完全不受影响。
+    if (window.__UI__ === 'client') {
+      const { ClientShell } = await import('./components/client');
+      root.render(
+        <ConfigProvider locale={zhCN}>
+          <AntdApp>
+            <ViteErrorOverlay />
+            <div className="client-theme" style={{ height: '100vh', overflow: 'hidden' }}>
+              <ClientShell>
+                <App />
+              </ClientShell>
+            </div>
+          </AntdApp>
+        </ConfigProvider>,
+      );
+      return;
+    }
+
     // 原型加载成功：把 root 重新交给原型组件（替换浮层）
     root.render(
       <ConfigProvider locale={zhCN}>

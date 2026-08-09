@@ -407,6 +407,59 @@ AI CLI 功能依赖用户本机已安装的 AI 命令行工具，**不在本项�
 
 ---
 
+## 🖼️ 客户端原型样式（WinForms 风格）
+
+本框架内置了一套**类 WinForms 桌面客户端**的视觉主题与组件库，用于还原传统桌面客户端（如 SPMS 产品管理、B2B-OMS 等系统）的界面风格。
+
+### 使用方式
+
+在 `proto.config.json` 中声明 `"ui": "client"`：
+
+```json
+{
+  "title": "SPMS 产品列表",
+  "ui": "client"
+}
+```
+
+框架会自动注入 `.client-theme` 样式隔离，并挂载 `ClientShell` 外壳，无需手动引入任何样式文件。
+
+### 可用组件
+
+从 `admin/src/components/client` 引入：
+
+| 组件 | 说明 | 典型用法 |
+|------|------|----------|
+| `ClientShell` | 外壳容器（自动挂载） | 无需手动引入 |
+| `ClientToolbar` | 顶部工具栏 | 按钮组 + 分隔线 |
+| `ClientFilterPanel` | 左侧筛选面板 | 表单字段 + 查询/重置按钮 |
+| `ClientTable` | 数据表格 | 表头、行、选中态、hover 效果 |
+| `ClientPager` | 分页器 | 页码 + 每页条数 + 总条数 |
+| `ClientWindow` | 弹窗容器 | 标题栏 + 内容区 + 底部按钮 |
+| `ClientForm` | 表单布局 | 两列 label + input 排列 |
+
+### 图标引用
+
+工具栏图标统一放在 `public/icons/toolbar/`，通过绝对路径引用：
+
+```tsx
+<img src="/icons/toolbar/add.png" alt="新增" />
+```
+
+可用图标清单：`add.png`、`edit.png`、`delete.png`、`save.png`、`refresh.png`、`search.png`、`export.png`、`import.png`、`print.png`、`setting.png`、`filter.png`、`close.png`。
+
+### 完整示例
+
+参考 `templates/client-prototype/` 目录，包含完整的 `proto.config.json` + `index.tsx` 模板，可直接复制到 `src/prototypes/<name>/` 使用。
+
+### 注意事项
+
+- 客户端样式通过 `ui: "client"` 激活，与默认 Ant Design 样式互斥，不可混用；
+- 所有组件均为纯手写 HTML/CSS，不依赖 DevExtreme 等第三方 UI 库；
+- 图标资源已随仓库分发在 `public/icons/` 目录，无需额外安装。
+
+---
+
 ## 📄 License
 
 内部工具，按团队规范使用。
