@@ -831,7 +831,8 @@ export default function Sidebar(props: SidebarProps) {
 
   const renderPrototypeList = () => {
     const { grouped, ungrouped } = groupedProtos;
-    const orderedGroups = groups; // 显示全部分组，包括空分组
+    // 只显示当前环境存在原型的分组（他人拉取仓库后，本地没有对应原型目录的分组自动隐藏）
+    const orderedGroups = groups.filter((g) => (grouped[g.id] || []).length > 0);
     const hasAny = orderedGroups.length > 0 || ungrouped.length > 0;
     if (!hasAny) return <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="暂无" style={{ margin: '24px 0' }} />;
 
