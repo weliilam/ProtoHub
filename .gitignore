@@ -8,7 +8,12 @@ vite.err.log
 # 版本对比临时目录
 src/prototypes/__cmp_*/
 # 原型与文档（不纳入框架仓库，仅本地保留）
-src/prototypes/
+src/prototypes/*
+# 例外：示例分组原型保留在仓库
+!src/prototypes/.groups.json
+!src/prototypes/nuc-batch-delivery-dialog-example/
+!src/prototypes/ioss-tax-number-management-example/
+!src/prototypes/B2B发货计划/
 src/docs/
 # 本地运行/数据产物
 dev.stdout.log

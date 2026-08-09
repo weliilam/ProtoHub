@@ -70,7 +70,8 @@
     "name": "示例",
     "prototypes": [
       "nuc-batch-delivery-dialog-example",
-      "ioss-tax-number-management-example"
+      "ioss-tax-number-management-example",
+      "B2B发货计划"
     ]
   }
 ]
