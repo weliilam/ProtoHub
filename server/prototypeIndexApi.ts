@@ -248,19 +248,39 @@ function buildIndex(target: string): IndexResult | null {
   return result;
 }
 
-/** 用批注描述 + 元素文字给条目打分 */
+/** 用批注描述 + 元素文字给条目打分。返回 0 表示不匹配（将被过滤掉）。 */
 function scoreEntry(e: SourceEntry, desc: string, text: string): number {
-  let s = 0;
   const d = desc || '';
   const t = (text || '').trim();
   const containers = [...d.matchAll(/「([^」]+)」(?:弹窗|抽屉|卡片|标签页)/g)].map((m) => m[1]);
   const quoted = [...d.matchAll(/「([^」]+)」/g)].map((m) => m[1]);
-  const targets = new Set([...containers, ...quoted, t].filter(Boolean));
 
+  // ── 硬约束：有容器名时，container 不匹配直接排除（注意容器自身 entry 的 container 可能是外层，它的 label 才是容器名，所以也认 label） ──
+  if (containers.length > 0 && !containers.some((c) => e.container.includes(c) || e.label === c)) return 0;
+
+  // ── 构建匹配目标 ──
+  // >20 字符 = 描述性文字（如"运单号不能为空，且必须是列表中存在..."），不是元素名
+  const isVerboseText = t.length > 20;
+  // quoted 里 >10 字符的词大概率是描述性说明文字，不是 UI 元素名
+  const shortQuoted = quoted.filter((q) => q && q.length <= 10);
+  const targets = new Set([...containers, ...shortQuoted].filter(Boolean));
+  // 仅当 text 是短标题/按钮名时才作为目标
+  if (!isVerboseText && t) targets.add(t);
+
+  let s = 0;
+
+  // 1) 标签匹配
   for (const tg of targets) {
-    if (e.label && (e.label.includes(tg) || tg.includes(e.label))) s += tg === t ? 35 : 25;
+    if (!e.label) continue;
+    if (e.label === tg) s += 30; // 完全匹配
+    else if (tg.length >= 2 && e.label.startsWith(tg)) s += 15; // 前缀匹配
+    else if (tg.length >= 2 && e.label.includes(tg)) s += 10; // 子串匹配
   }
-  if (containers.some((c) => e.container.includes(c) || e.label.includes(c))) s += 20;
+
+  // 2) 容器归属奖励（仅当已有 label 匹配时才给，防止纯靠容器位置误中）
+  if (s > 0 && containers.some((c) => e.container.includes(c))) s += 25;
+
+  // 3) 类型提示加分
   if (/列/.test(d) && e.kind === 'column') s += 15;
   if (/按钮/.test(d) && e.kind === 'button') s += 15;
   if (/菜单|下拉/.test(d) && e.kind === 'menu') s += 15;
@@ -269,7 +289,7 @@ function scoreEntry(e: SourceEntry, desc: string, text: string): number {
   if (/抽屉/.test(d) && e.kind === 'drawer') s += 12;
   if (/输入|下拉|选择|日期/.test(d) && e.kind === 'field') s += 15;
   if (/标签页|页签/.test(d) && e.kind === 'tab') s += 15;
-  if (t && e.label === t) s += 10;
+
   return s;
 }
 
@@ -286,9 +306,13 @@ export function prototypeIndexApiPlugin(): Plugin {
           if (!/^[\w一-龥-]{1,60}$/.test(target)) return sendError(res, 'target 非法', 400);
           const idx = buildIndex(target);
           if (!idx) return sendError(res, '原型不存在', 404);
+          const desc = body.description || '';
+          const text = body.text || '';
+          // 最低分数阈值：低于此分的候选视为噪音
+          const MIN_SCORE = 30;
           const ranked = idx.entries
-            .map((e) => ({ ...e, score: scoreEntry(e, body.description || '', body.text || '') }))
-            .filter((e) => e.score > 0)
+            .map((e) => ({ ...e, score: scoreEntry(e, desc, text) }))
+            .filter((e) => e.score >= MIN_SCORE)
             .sort((a, b) => b.score - a.score)
             .slice(0, 3);
           return sendJson(res, { success: true, data: ranked });

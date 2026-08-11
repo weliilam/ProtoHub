@@ -740,6 +740,8 @@ export default function App() {
               border: '1px dashed var(--ph-anno-warn-border)',
               background: 'var(--ph-anno-warn-bg)',
               borderRadius: 6,
+              maxHeight: 220,
+              overflowY: 'auto',
             }}
           >
             <div style={{ marginBottom: 6, fontSize: 12 }}>
@@ -748,15 +750,17 @@ export default function App() {
               </Tag>
               <span style={{ color: 'var(--ph-text-secondary)' }}>AI 将优先修改以下位置：</span>
             </div>
-            <Radio.Group value={pickMatchIdx} onChange={(e) => setPickMatchIdx(e.target.value)}>
-              <Space direction="vertical" size={4}>
+            <Radio.Group value={pickMatchIdx} onChange={(e) => setPickMatchIdx(e.target.value)} style={{ width: '100%' }}>
+              <Space direction="vertical" size={4} style={{ width: '100%' }}>
                 {pickMatches.map((m, i) => (
-                  <Radio key={i} value={i} style={{ fontSize: 12, whiteSpace: 'nowrap' }}>
-                    <code style={{ color: 'var(--ph-text)', fontWeight: 600 }}>
-                      {m.file}:{m.line}
-                    </code>
-                    <span style={{ color: 'var(--ph-text-secondary)', marginLeft: 6, fontFamily: 'monospace' }}>{m.code}</span>
-                    <Tag style={{ marginLeft: 8 }}>{m.container}</Tag>
+                  <Radio key={i} value={i} style={{ fontSize: 12, width: '100%', alignItems: 'flex-start', display: 'flex' }}>
+                    <span style={{ display: 'inline-block', wordBreak: 'break-all', overflowWrap: 'anywhere', lineHeight: 1.6 }}>
+                      <code style={{ color: 'var(--ph-text)', fontWeight: 600, fontSize: 12 }}>{m.file}:{m.line}</code>
+                      <Tag style={{ marginLeft: 6, marginRight: 6 }}>{m.container}</Tag>
+                      <span style={{ color: 'var(--ph-text-secondary)', fontFamily: 'monospace', fontSize: 12 }}>
+                        {m.code.length > 120 ? m.code.slice(0, 120) + '…' : m.code}
+                      </span>
+                    </span>
                   </Radio>
                 ))}
               </Space>
