@@ -26,3 +26,10 @@ annotations.json.bak
 /_*.json
 /_*.cjs
 /_*.mjs
+/_*.xml
+/_*.ps1
+/_*.mmd
+fetch-code-skill.md
+# 根目录业务无关文件（不入库）
+/*.csv
+clean_gap.xml

@@ -1,1 +1,0 @@
-{"cli":"codebuddy","prompt":"请修改原型 src/prototypes/ioss-tax-number-management/index.tsx（及其相关文件），按以下批注意见调整：\n1. 元素 #root > div.ioss-layout > div.ioss-search-bar:nth-of-type(2) > div.ioss-search-row > div.ioss-search-item:nth-of-type(2) > span.ioss-search-label:nth-of-type(1)：支持下拉改成IOSS密文，同时搜索框也支持密文搜索\n\n修改完成后请自查页面效果。"}
