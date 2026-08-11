@@ -233,6 +233,19 @@
           <template v-else-if="column.key === 'detentionFinishTime'">{{ detFinishTime(record) }}</template>
           <template v-else-if="column.key === 'chargeStatus'"><a-tag :color="CHARGE_TAG[record.chargeStatus]">{{ CHARGE_LABEL[record.chargeStatus] ?? record.chargeStatus }}</a-tag></template>
           <template v-else-if="column.key === 'interceptStatus'"><a-tag v-if="record.interceptStatus === 'Y'" color="red">是</a-tag><span v-else>否</span></template>
+          <template v-else-if="column.key === 'action'">
+            <span class="bol-action-links">
+              <a class="bol-action-link" @click="detailRecord = record; detailOpen = true">详情</a>
+              <span class="bol-action-divider">|</span>
+              <a class="bol-action-link" @click="auditRecord = record; auditOpen = true">审核</a>
+              <span class="bol-action-divider">|</span>
+              <a class="bol-action-link" @click="detailRecord = record; detailOpen = true">编辑</a>
+              <span class="bol-action-divider">|</span>
+              <a class="bol-action-link" @click="logRecord = record; logOpen = true">日志</a>
+              <span class="bol-action-divider">|</span>
+              <a class="bol-action-link" @click="followUpRecord = record; followUpOpen = true">跟进备注</a>
+            </span>
+          </template>
           <template v-else>{{ record[column.dataIndex] ?? (column.dataIndex === 'serviceChannel' ? '—' : '') }}</template>
         </template>
       </a-table>
