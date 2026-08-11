@@ -132,10 +132,10 @@ export default function AnnotationPanel({ target, annotations, onToggleStatus, o
   }, [publishing, liveOutput, liveThinking]);
 
   const STAGES: { key: string; label: string }[] = [
-    { key: 'connecting', label: '连接 AI CLI' },
-    { key: 'thinking', label: 'AI 思考中' },
-    { key: 'reading', label: '读取源码' },
-    { key: 'writing', label: '改写文件' },
+    { key: 'connecting', label: '连接AI' },
+    { key: 'thinking', label: '思考中' },
+    { key: 'reading', label: '读源码' },
+    { key: 'writing', label: '改文件' },
     { key: 'summary', label: '生成说明' },
   ];
 
