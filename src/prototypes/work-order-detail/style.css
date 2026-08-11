@@ -1,0 +1,237 @@
+/* ========================= 工单详情 样式 ========================= */
+
+.wod-page {
+  padding: 20px;
+  background: #f5f6fa;
+  min-height: 100vh;
+}
+
+.wod-header {
+  margin-bottom: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.wod-reset-btn {
+  flex-shrink: 0;
+}
+
+.wod-title {
+  font-size: 18px;
+  font-weight: 600;
+  color: #1a1a2e;
+  margin: 0;
+}
+
+/* ========================= 卡片 ========================= */
+.wod-card {
+  background: #fff;
+  border-radius: 8px;
+  padding: 20px 24px;
+  margin-bottom: 12px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+}
+
+.wod-card-title {
+  position: relative;
+  font-size: 14px;
+  font-weight: 600;
+  color: #1a1a2e;
+  padding-left: 11px;
+  margin-bottom: 16px;
+}
+
+.wod-card-title::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 1px;
+  bottom: 1px;
+  width: 3px;
+  border-radius: 2px;
+  background: #1677ff;
+}
+
+/* ========================= 资料模板平铺子模块 ========================= */
+.wod-sub-section {
+  margin-bottom: 24px;
+}
+
+.wod-sub-section:last-child {
+  margin-bottom: 0;
+}
+
+.wod-sub-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: #374151;
+  margin-bottom: 12px;
+  padding-left: 8px;
+  border-left: 2px solid #d1d5db;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.wod-sub-count {
+  font-size: 12px;
+  font-weight: 400;
+  color: #9ca3af;
+  padding-left: 8px;
+  border-left: none;
+}
+
+.wod-empty-cell {
+  text-align: center;
+  color: #9ca3af;
+  font-size: 13px;
+  padding: 16px 0;
+}
+
+/* ========================= 表单 ========================= */
+.wod-form .el-form-item {
+  margin-bottom: 12px;
+}
+
+.wod-form .el-form-item__label {
+  font-size: 13px;
+  color: #6b7280;
+  font-weight: 400;
+}
+
+.wod-form .el-form-item__content {
+  font-size: 13px;
+  color: #374151;
+  line-height: 32px;
+}
+
+/* ========================= 等宽字体 ========================= */
+.wod-mono {
+  font-family: "SF Mono", "Consolas", "Monaco", monospace;
+  font-size: 12px;
+  color: #1a1a2e;
+}
+
+/* ========================= 文字颜色 ========================= */
+.wod-text-danger {
+  color: #f5222d;
+  font-weight: 500;
+}
+
+.wod-text-warning {
+  color: #fa8c16;
+  font-weight: 500;
+}
+
+/* ========================= 表格 ========================= */
+.wod-card .el-table {
+  font-size: 13px;
+}
+
+.wod-card .el-table th.el-table__cell {
+  background: #f9fafb;
+  font-weight: 600;
+  color: #4b5563;
+  font-size: 12px;
+}
+
+.wod-card .el-table--striped .el-table__body tr.el-table__row--striped td.el-table__cell {
+  background: #fafafa;
+}
+
+/* ========================= 工单记录 ========================= */
+.wod-record-header {
+  margin-bottom: 16px;
+  font-size: 13px;
+  color: #6b7280;
+}
+
+.wod-record-label {
+  color: #6b7280;
+}
+
+.wod-timeline {
+  padding-left: 4px;
+}
+
+.wod-timeline .el-timeline-item__timestamp {
+  font-size: 12px;
+  color: #9ca3af;
+}
+
+.wod-timeline-content {
+  padding-bottom: 4px;
+}
+
+.wod-timeline-operator {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+
+.wod-timeline-action {
+  font-size: 14px;
+  color: #1a1a2e;
+  font-weight: 500;
+}
+
+.wod-timeline-detail {
+  font-size: 13px;
+  color: #6b7280;
+  line-height: 1.5;
+  margin-top: 4px;
+}
+
+/* ========================= 底部操作 ========================= */
+.wod-footer {
+  background: #fff;
+  border-radius: 8px;
+  padding: 16px 24px;
+  margin-top: 12px;
+  display: flex;
+  justify-content: center;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+}
+
+/* ========================= Element Plus 主色覆盖 ========================= */
+.wod-page .el-button--primary {
+  --el-button-bg-color: #1677ff;
+  --el-button-border-color: #1677ff;
+}
+
+.wod-page .el-button--primary:hover {
+  --el-button-bg-color: #4096ff;
+  --el-button-border-color: #4096ff;
+}
+
+.wod-page .el-button--primary:active {
+  --el-button-bg-color: #0958d9;
+  --el-button-border-color: #0958d9;
+}
+
+.wod-page .el-button--primary.is-disabled,
+.wod-page .el-button--primary.is-disabled:hover {
+  --el-button-bg-color: #a0cfff;
+  --el-button-border-color: #a0cfff;
+}
+
+.wod-page .el-pagination.is-background .el-pager li.is-active {
+  background-color: #1677ff;
+}
+
+.wod-page .el-tag--primary {
+  --el-tag-bg-color: rgba(22, 119, 255, 0.1);
+  --el-tag-border-color: rgba(22, 119, 255, 0.2);
+  --el-tag-text-color: #1677ff;
+}
+
+.wod-page .el-timeline-item__node--primary {
+  background-color: #1677ff;
+}
+
+/* ========================= 弹框内表格 ========================= */
+.wod-card .el-table--border .el-table__cell {
+  border-right: 1px solid #e5e7eb;
+}
