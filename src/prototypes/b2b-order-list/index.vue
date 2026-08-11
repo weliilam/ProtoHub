@@ -756,9 +756,6 @@
           <a class="bol-import-link" @click="downloadAddrImportTemplate">地址审核状态模版.xlsx</a>
         </div>
         <div class="bol-import-tips-text">文件格式限制：仅支持 .xlsx，单文件不超过 10MB；</div>
-        <div class="bol-import-tips-text">1. 运单号不能为空，且必须是列表中存在（本原型数据）的运单号；</div>
-        <div class="bol-import-tips-text">2. 审核状态仅支持：待审核 / 已审核 / 待确认；</div>
-        <div class="bol-import-tips-text">3. 收件人姓名、省/州、城市、地址1、地址2、邮编、电话、收件人公司名称、邮箱仅作核对参考，导入后仅更新审核状态。</div>
       </div>
       <template #footer>
         <a-button @click="addrImportOpen = false">取消</a-button>

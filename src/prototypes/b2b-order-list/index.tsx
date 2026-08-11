@@ -1863,8 +1863,6 @@ const B2BOrderList = () => {
             <a className="bol-import-link" onClick={downloadAddrImportTemplate}>地址审核状态导入模板.xlsx</a>
           </div>
           <div className="bol-import-tips-text">文件格式限制：仅支持 .xlsx，单文件不超过 10MB；</div>
-          <div className="bol-import-tips-text">1. 运单号不能为空，且必须是列表中存在（本原型数据）的运单号；</div>
-          <div className="bol-import-tips-text">2. 地址审核状态仅支持：待审核 / 已审核 / 待确认。</div>
         </div>
       </Modal>
     </div>
