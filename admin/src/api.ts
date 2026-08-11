@@ -1,4 +1,4 @@
-import type { AiStatus, Annotation, EntryItem, GitLogItem, GroupConfig, PrdDoc, PrototypeInfo } from './types';
+import type { AiStatus, Annotation, EntryItem, GitLogItem, GroupConfig, PrdDoc, PrototypeInfo, SourceMatch } from './types';
 
 async function request<T = any>(url: string, options?: RequestInit): Promise<T> {
   const res = await fetch(url, {
@@ -130,6 +130,12 @@ export const api = {
 
   // 批注
   listAnnotations: (target: string) => request<Annotation[]>(`/api/annotations?target=${encodeURIComponent(target)}`),
+  /** 用批注描述 + 元素文字去源码特征索引里匹配，返回命中的源码位置（按分数降序 top3） */
+  matchPrototypeSource: (target: string, picked: { description?: string; text?: string }) =>
+    request<SourceMatch[]>('/api/prototype-index/match', {
+      method: 'POST',
+      body: JSON.stringify({ target, description: picked.description || '', text: picked.text || '' }),
+    }),
   createAnnotation: (data: Partial<Annotation>) =>
     request<Annotation>('/api/annotations', { method: 'POST', body: JSON.stringify(data) }),
   updateAnnotation: (id: string, patch: Partial<Annotation>) =>

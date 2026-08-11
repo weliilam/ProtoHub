@@ -6,6 +6,7 @@ import { dataApiPlugin } from './dataApi';
 import { gitApiPlugin } from './gitApi';
 import { aiCliApiPlugin } from './aiCliApi';
 import { annotationApiPlugin } from './annotationApi';
+import { prototypeIndexApiPlugin } from './prototypeIndexApi';
 import { prdApiPlugin } from './prdApi';
 import { prototypeInfoPlugin } from './prototypeInfoApi';
 import { networkApiPlugin } from './networkApi';
@@ -22,6 +23,7 @@ export function serverPlugins(): Plugin[] {
     comparePlugin(),
     aiCliApiPlugin(),
     annotationApiPlugin(),
+    prototypeIndexApiPlugin(),
     prdApiPlugin(),
     prototypeInfoPlugin(),
     networkApiPlugin(),

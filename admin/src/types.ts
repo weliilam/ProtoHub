@@ -32,8 +32,21 @@ export interface Annotation {
    * 如 "表格「操作」列（第2列，"ID"左侧，"状态"右侧）"
    */
   elementDescription?: string;
+  /** 源码特征索引命中的精确位置：文件 + 行号 + 代码原文，供 AI 直接定位 */
+  elementSource?: SourceMatch;
   /** 标记完成时使用的 AI 模型名称，用于追溯该批注由哪个模型修改 */
   resolvedBy?: string;
+}
+
+/** 源码特征索引匹配结果（批注点选时由 /api/prototype-index/match 返回） */
+export interface SourceMatch {
+  file: string;
+  line: number;
+  code: string;
+  kind: 'modal' | 'drawer' | 'card' | 'column' | 'button' | 'menu' | 'link' | 'field' | 'tab';
+  label: string;
+  container: string;
+  score: number;
 }
 
 export interface GitLogItem {

@@ -187,7 +187,7 @@ export default function PrototypePreview(props: Props) {
           ref={iframeRef}
           className="ph-iframe"
           title={item.title}
-          sandbox="allow-scripts allow-same-origin allow-forms"
+          sandbox="allow-scripts allow-same-origin allow-forms allow-downloads"
           onLoad={handleLoad}
           onError={handleError}
         />

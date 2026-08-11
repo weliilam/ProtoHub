@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Badge, Button, Empty, Input, Modal, Segmented, Space, Tag, Tooltip, message } from 'antd';
+import { Badge, Button, Empty, Input, Modal, Radio, Segmented, Space, Tag, Tooltip, message } from 'antd';
 import {
   CloseOutlined,
   CommentOutlined,
@@ -30,7 +30,7 @@ import { api } from './api';
 import { useTheme } from './theme';
 import { useAiRunning } from './aiRunStore';
 import type { PickedElement } from './annotation';
-import type { Annotation, EntryItem, PrdDoc } from './types';
+import type { Annotation, EntryItem, PrdDoc, SourceMatch } from './types';
 
 type RightPanel = 'annotation' | 'git' | 'ai' | 'prd' | null;
 
@@ -130,6 +130,9 @@ export default function App() {
   const [rightPanel, setRightPanel] = useState<RightPanel>(null);
   const [pendingPick, setPendingPick] = useState<PickedElement | null>(null);
   const [annotationText, setAnnotationText] = useState('');
+  // 源码特征索引匹配：点选元素后异步命中源码位置（null=匹配中，[] = 无命中）
+  const [pickMatches, setPickMatches] = useState<SourceMatch[] | null>(null);
+  const [pickMatchIdx, setPickMatchIdx] = useState(0);
   const [undoStack, setUndoStack] = useState<UndoAction[]>([]);
   // 找不到对应元素的失效批注（可能已被 AI 改动删除/结构变化）
   const [orphanAnnotations, setOrphanAnnotations] = useState<Annotation[]>([]);
@@ -291,6 +294,22 @@ export default function App() {
   const handlePick = (picked: PickedElement) => {
     setPendingPick(picked);
     setAnnotationText('');
+    setPickMatches(null);
+    setPickMatchIdx(0);
+    if (selected?.type === 'prototype') {
+      api
+        .matchPrototypeSource(selected.name, {
+          description: picked.elementDescription || '',
+          text: picked.elementText || '',
+        })
+        .then((matches) => {
+          setPickMatches(matches || []);
+          setPickMatchIdx(0);
+        })
+        .catch(() => setPickMatches([]));
+    } else {
+      setPickMatches([]);
+    }
   };
 
   // 面板关闭（带动画），220ms 匹配 CSS slide-out 时长
@@ -342,6 +361,7 @@ export default function App() {
         text: annotationText.trim(),
         elementText: pendingPick.elementText,
         elementDescription: pendingPick.elementDescription,
+        elementSource: pickMatches && pickMatches.length > 0 ? pickMatches[pickMatchIdx] : undefined,
       });
       setAnnotations(await api.listAnnotations(selected.name));
       setUndoStack((s) => [...s, { kind: 'add', annotation: created }]);
@@ -710,6 +730,41 @@ export default function App() {
         onCancel={() => setPendingPick(null)}
       >
         <p style={{ fontSize: 12, color: 'var(--ph-text-tertiary)', wordBreak: 'break-all' }}>{pendingPick?.selector}</p>
+        {pickMatches === null ? (
+          <div style={{ margin: '8px 0', fontSize: 12, color: 'var(--ph-text-tertiary)' }}>正在定位源码…</div>
+        ) : pickMatches.length > 0 ? (
+          <div
+            style={{
+              margin: '8px 0',
+              padding: '8px 10px',
+              border: '1px dashed var(--ph-anno-warn-border)',
+              background: 'var(--ph-anno-warn-bg)',
+              borderRadius: 6,
+            }}
+          >
+            <div style={{ marginBottom: 6, fontSize: 12 }}>
+              <Tag color="green" style={{ marginRight: 6 }}>
+                已定位源码
+              </Tag>
+              <span style={{ color: 'var(--ph-text-secondary)' }}>AI 将优先修改以下位置：</span>
+            </div>
+            <Radio.Group value={pickMatchIdx} onChange={(e) => setPickMatchIdx(e.target.value)}>
+              <Space direction="vertical" size={4}>
+                {pickMatches.map((m, i) => (
+                  <Radio key={i} value={i} style={{ fontSize: 12, whiteSpace: 'nowrap' }}>
+                    <code style={{ color: 'var(--ph-text)', fontWeight: 600 }}>
+                      {m.file}:{m.line}
+                    </code>
+                    <span style={{ color: 'var(--ph-text-secondary)', marginLeft: 6, fontFamily: 'monospace' }}>{m.code}</span>
+                    <Tag style={{ marginLeft: 8 }}>{m.container}</Tag>
+                  </Radio>
+                ))}
+              </Space>
+            </Radio.Group>
+          </div>
+        ) : (
+          <div style={{ margin: '8px 0', fontSize: 12, color: 'var(--ph-text-tertiary)' }}>未匹配到源码位置，AI 将按描述定位。</div>
+        )}
         <Input.TextArea
           rows={4}
           autoFocus

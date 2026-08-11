@@ -41,34 +41,32 @@ interface Props {
 /** 把待发布的批注整理成给 AI 的修改指令 */
 export function buildAiPrompt(target: string, list: Annotation[]): string {
   const lines = list.map((a, i) => {
-    // 优先使用 elementDescription（富上下文），否则回退到裸选择器
     const targetDesc = a.elementDescription || `元素 \`${a.selector}\``;
-    // 如果 elementText 和 elementDescription 不同，也附上文字兜底
     const extra = a.elementText && !a.elementDescription?.includes(a.elementText)
       ? `（文字内容："${a.elementText}"）`
       : '';
-    return `${i + 1}. ${targetDesc}：${a.text}${extra}`;
+    const src = a.elementSource
+      ? `【源码定位】${a.elementSource.file}:${a.elementSource.line} \`${a.elementSource.code}\`（所属：${a.elementSource.container}）`
+      : '';
+    return `${i + 1}. ${targetDesc}：${a.text}${extra}${src ? ` ${src}` : ''}`;
   });
 
-  return `请修改原型 src/prototypes/${target}/index.tsx（及其相关文件），按以下批注意见调整：
-${lines.join('\n')}
+  const hasContainer = list.some((a) => a.elementDescription?.includes('弹窗中') || a.elementDescription?.includes('抽屉中') || a.elementDescription?.includes('卡片中') || a.elementDescription?.includes('标签页中'));
 
-定位说明（重要）：
-- 每条批注开头用「」标注了被点击元素的描述（如"表格"订单号"列（第2列，"ID"左侧）"），请根据列标题文字、列序号、相邻列上下文在源码中定位，不要仅凭 CSS 选择器猜测；
-- 若批注描述包含「表格」「列」，请在 JSX 的 table columns 数组（或 <Table> 组件的 columns 属性）中查找；
-- 若批注描述包含「按钮」「表单字段」「菜单项」，请根据文字内容搜索源码中的可见文案；
-- 若描述中包含列序号（如"第2列"），结合左侧/右侧列标题文字一起定位，避免同名列混淆。
+  const containerHint = hasContainer
+    ? `\n\n重要：上述描述中的「XX弹窗」「XX抽屉」等前缀表示该元素所属的 UI 容器。请只修改该容器内部的代码（modal 的 <a-table>、弹窗内的组件等），不要修改页面主列表或其他容器内名称相似的元素。两个不同容器内的同名列/按钮是独立的，不要互相影响。`
+    : '';
 
-执行约束（必须严格遵守）：
-- 只通过编辑源码文件完成修改，不要启动开发服务器、不要执行 tsc / build / 测试、不要截图或打开浏览器；
-- 精准修改与批注相关的部分，保持原有结构、样式与现有功能；
-- 若批注对应的功能尚未实现或不完整，请直接补充代码实现，不要只做分析；
-- 改完后用 2-3 句话说明修改了哪些文件与内容即可，不要做额外验证。
+  const hasSource = list.some((a) => a.elementSource);
+  const sourceHint = hasSource
+    ? `\n\n重要：部分批注末尾附带了【源码定位】（我方已按源码扫描给出精确位置：文件:行号 + 代码原文，其中「所属」表示它所在的 UI 容器）。请以【源码定位】为准直接修改对应代码位置；只改该容器内部，不要改动其他容器内名称相似的元素。若行号与实际略有偏移，请结合【源码定位】中的代码原文与批注描述中的文字特征二次核对后再改。`
+    : '';
 
-最后，请用一行固定分隔符 \`===业务变更说明===\` 另起一段，写一段**给不懂技术的产品 / 业务同事看**的变更说明：
-- 用大白话说明这次原型页面改了哪些地方、对使用者（用户）有什么影响；
-- 绝对不要出现代码、文件路径、技术术语、函数名、变量名；
-- 2-4 句即可，可分条列出改动的页面或功能点。`;
+  const suffix = list.length <= 1
+    ? `\n\n要求：精准修改相关代码，保持原有结构和风格；改完后用一行分隔符 \`===业务变更说明===\` 写 2-3 句面向产品的变更说明（大白话，不要代码/技术术语）。`
+    : `\n\n定位：根据描述中的列标题、按钮文字、菜单项等在源码中定位。\n要求：只编辑源码不改dev server；保持原有结构风格；改完后 2-3 句话说明改动。\n最后用分隔符 \`===业务变更说明===\` 写面向产品的变更说明（大白话）。`;
+
+  return `修改原型 src/prototypes/${target}（及其相关文件）：\n${lines.join('\n')}${containerHint}${sourceHint}${suffix}`;
 }
 
 /** AI 输出里标记业务说明的分隔符 */
@@ -107,6 +105,7 @@ const DIFF_STYLE: React.CSSProperties = {
 export default function AnnotationPanel({ target, annotations, onToggleStatus, onDelete, onApplied, onMarkDone, orphanAnnotations = [], onDeleteOrphans, canUndo, onUndo }: Props) {
   const [publishing, setPublishing] = useState(false);
   const [liveOutput, setLiveOutput] = useState('');
+  const [liveThinking, setLiveThinking] = useState('');
   const [elapsed, setElapsed] = useState(0);
   const publishTimerRef = useRef<ReturnType<typeof setInterval>>();
 
@@ -124,16 +123,17 @@ export default function AnnotationPanel({ target, annotations, onToggleStatus, o
   // 根据 AI 实时输出推导当前所处阶段
   const publishStage = useMemo(() => {
     if (!publishing) return '';
-    if (!liveOutput) return 'connecting';
+    if (!liveOutput && !liveThinking) return 'connecting';
+    if (liveThinking && !liveOutput) return 'thinking';
     if (liveOutput.includes('===业务变更说明===')) return 'summary';
     if (/replace_in_file|write_to_file|edit_file/.test(liveOutput)) return 'writing';
     if (/read_file|Read|reading|查看文件/.test(liveOutput)) return 'reading';
-    return 'analyzing';
-  }, [publishing, liveOutput]);
+    return liveOutput ? 'analyzing' : 'thinking';
+  }, [publishing, liveOutput, liveThinking]);
 
   const STAGES: { key: string; label: string }[] = [
     { key: 'connecting', label: '连接 AI CLI' },
-    { key: 'analyzing', label: '分析批注' },
+    { key: 'thinking', label: 'AI 思考中' },
     { key: 'reading', label: '读取源码' },
     { key: 'writing', label: '改写文件' },
     { key: 'summary', label: '生成说明' },
@@ -209,6 +209,18 @@ export default function AnnotationPanel({ target, annotations, onToggleStatus, o
     publishToCodeBuddy();
   };
 
+  /** 还原到发布前的自动快照（AI 改错后兜底） */
+  const restoreBackup = async (hash: string) => {
+    Modal.destroyAll();
+    try {
+      await api.gitRestore(hash, `src/prototypes/${target}`);
+      message.success('已还原到发布前状态，请刷新预览查看');
+      onApplied?.();
+    } catch (e: any) {
+      message.error(`还原失败：${e.message}`);
+    }
+  };
+
   /** 一键把勾选的批注发布给 AI CLI，直接改写原型文件 */
   const publishToCodeBuddy = async () => {
     if (selectedOpen.length === 0) {
@@ -217,7 +229,16 @@ export default function AnnotationPanel({ target, annotations, onToggleStatus, o
     }
     setPublishing(true);
     setLiveOutput('');
+    setLiveThinking('');
     aiRunStore.set(true);
+    // 兜底保险用的快照 hash：AI 改动前拍快照，改错后可一键还原（提升到函数级，失败弹窗也能用）
+    let backupHash = '';
+    try {
+      // ── 兜底保险：AI 改动前先对该原型目录拍一份快照，改错后可一键还原 ──
+      backupHash = (await api.gitSnapshot(`批注发布前自动备份：${target}`, `src/prototypes/${target}`)).hash;
+    } catch {
+      /* 无 Git / 该原型没有变更时跳过自动备份，不影响发布 */
+    }
     try {
       const status = (await api.aiStatus()).clis;
       const available = Object.entries(status)
@@ -237,6 +258,11 @@ export default function AnnotationPanel({ target, annotations, onToggleStatus, o
         },
         undefined,
         getAiModel(), // 固定模型（仅 codebuddy 生效）
+        undefined,
+        undefined,
+        (thinking) => {
+          setLiveThinking((prev) => prev + thinking);
+        },
       );
 
       // 发布后抓取该原型相对 HEAD 的代码改动，让产品同学直接看到改了什么
@@ -294,6 +320,28 @@ export default function AnnotationPanel({ target, annotations, onToggleStatus, o
                 重试
               </Button>
             )}
+            {backupHash && (
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  gap: 12,
+                  marginBottom: 12,
+                  padding: '8px 12px',
+                  border: '1px dashed var(--ph-anno-warn-border)',
+                  background: 'var(--ph-anno-warn-bg)',
+                  borderRadius: 6,
+                }}
+              >
+                <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                  已自动备份（{backupHash.slice(0, 7)}）。若改动不符合预期，可一键还原到发布前状态。
+                </Typography.Text>
+                <Button size="small" danger icon={<UndoOutlined />} onClick={() => restoreBackup(backupHash)}>
+                  还原到发布前
+                </Button>
+              </div>
+            )}
             <Collapse
               ghost
               size="small"
@@ -328,6 +376,27 @@ export default function AnnotationPanel({ target, annotations, onToggleStatus, o
             <Typography.Paragraph type="danger" style={{ marginBottom: 12 }}>
               {e.message}
             </Typography.Paragraph>
+            {backupHash && (
+              <div
+                style={{
+                  marginBottom: 12,
+                  padding: '8px 12px',
+                  border: '1px dashed var(--ph-anno-warn-border)',
+                  background: 'var(--ph-anno-warn-bg)',
+                  borderRadius: 6,
+                  fontSize: 12,
+                }}
+              >
+                <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                  发布前已自动备份，若 AI 已改动部分文件，可先还原到发布前状态再重试。
+                </Typography.Text>
+                <div style={{ marginTop: 8 }}>
+                  <Button size="small" danger icon={<UndoOutlined />} onClick={() => restoreBackup(backupHash)}>
+                    还原到发布前
+                  </Button>
+                </div>
+              </div>
+            )}
             <Space>
               <Button type="primary" icon={<ReloadOutlined />} onClick={retry}>
                 重试
@@ -503,6 +572,26 @@ export default function AnnotationPanel({ target, annotations, onToggleStatus, o
               </span>
             </div>
             {/* 实时输出 */}
+            {liveThinking && !liveOutput && (
+              <pre
+                style={{
+                  whiteSpace: 'pre-wrap',
+                  maxHeight: 140,
+                  overflow: 'auto',
+                  background: 'var(--ph-anno-loading-bg)',
+                  color: 'var(--ph-text-secondary)',
+                  padding: 8,
+                  borderRadius: 6,
+                  fontSize: 11,
+                  margin: 0,
+                  fontFamily: 'monospace',
+                  fontStyle: 'italic',
+                  lineHeight: 1.4,
+                }}
+              >
+                {liveThinking.slice(-800)}
+              </pre>
+            )}
             <pre
               style={{
                 whiteSpace: 'pre-wrap',
@@ -519,7 +608,7 @@ export default function AnnotationPanel({ target, annotations, onToggleStatus, o
                 border: '1px solid var(--ph-anno-input-border)',
               }}
             >
-              {liveOutput || '（等待 AI 开始输出…）'}
+              {liveOutput || (!liveThinking ? '（等待 AI 开始输出…）' : '（AI 思考完成，正在生成改动…）')}
             </pre>
           </div>
         )}

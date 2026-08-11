@@ -37,11 +37,81 @@ function ensureStyle(doc: Document) {
 }
 
 /**
+ * 沿 DOM 树向上查找元素所在的"命名容器"，返回用于区分同文件内同名元素的上下文前缀。
+ * 
+ * 解决的核心问题：同一个 Vue/React 文件里可能有多个表格、多个按钮（如主列表表格
+ *  vs 弹框中的预览表格），仅靠列名/按钮文字无法区分，AI 会误改不相关的代码。
+ * 
+ * 查找优先级：Modal 标题 > Drawer 标题 > Card 标题 > 页面主标题 > Section 标题
+ */
+function captureContainerPrefix(el: Element): string {
+  // 1) antd / element-plus Modal 弹框标题
+  let cur: Element | null = el;
+  while (cur) {
+    const titleEl = cur.querySelector(':scope > .ant-modal-title, :scope > .el-dialog__title');
+    if (titleEl) {
+      const t = (titleEl.textContent || '').trim().slice(0, 30);
+      if (t) return `「${t}」弹窗中的`;
+    }
+    cur = cur.parentElement;
+  }
+
+  // 2) Drawer 抽屉
+  cur = el;
+  while (cur) {
+    const titleEl = cur.querySelector(':scope > .ant-drawer-title, :scope > .el-drawer__title');
+    if (titleEl) {
+      const t = (titleEl.textContent || '').trim().slice(0, 30);
+      if (t) return `「${t}」抽屉中的`;
+    }
+    cur = cur.parentElement;
+  }
+
+  // 3) antd Card 卡片
+  cur = el;
+  while (cur) {
+    const head = cur.querySelector(':scope > .ant-card-head-title, :scope > .el-card__header');
+    if (head) {
+      const t = (head.textContent || '').trim().slice(0, 30);
+      if (t) return `「${t}」卡片中的`;
+    }
+    cur = cur.parentElement;
+  }
+
+  // 4) Tab 标签页
+  cur = el;
+  while (cur) {
+    const active = cur.querySelector(':scope > .ant-tabs-tab-active, :scope > .el-tabs__item.is-active');
+    if (active) {
+      const t = (active.textContent || '').trim().slice(0, 30);
+      if (t) return `「${t}」标签页中的`;
+    }
+    cur = cur.parentElement;
+  }
+
+  // 5) 页面主标题（h1 / h2 / 页面级标题栏）
+  const doc = el.ownerDocument;
+  const pageTitle = doc?.querySelector('h1, h2, .bol-title, .page-title');
+  if (pageTitle) {
+    const t = (pageTitle.textContent || '').trim().slice(0, 30);
+    if (t) return `「${t}」页面中的`;
+  }
+
+  return '';
+}
+
+/**
  * 分析被点击元素，生成人类可读 + AI 可精准定位的描述。
  * 
+ * 描述格式：容器前缀 + 元素类型 + 元素名称 + 列/位置信息 + 相邻元素参照。
+ * 示例输出：
+ *   - 「备注导入」弹窗中的表格「操作」列（第5列，"配载备注"左侧）
+ *   - 「B2B订单列表」页面中的表格「订单状态」列（第3列，"运单号"右侧）
+ *   - 「地址审核」弹窗中的按钮「审核」
+ * 
  * 为什么需要？CSS 选择器描述的是运行时 DOM 结构（如 th:nth-of-type(2)），
- * 但 AI 看到的是 React JSX 源码（如 antd columns 数组），两者之间没有直接映射。
- * 通过捕获"列标题文字 + 列位置 + 相邻列文字"，AI 可以用多个特征交叉核实定位。
+ * 但 AI 看到的是 Vue/React JSX 源码（如 antd columns 数组），两者之间没有直接映射。
+ * 通过捕获"容器 + 列标题文字 + 列位置 + 相邻列文字"，AI 可以用多个特征交叉核实定位。
  */
 export function captureElementContext(el: Element): string {
   const tag = el.tagName.toLowerCase();
@@ -64,7 +134,6 @@ export function captureElementContext(el: Element): string {
     const table = el.closest('table');
     if (table) {
       const theadRows = table.querySelectorAll('thead tr');
-      // 优先取最后一行的 th（多级表头场景）
       const lastTheadRow = theadRows[theadRows.length - 1];
       if (lastTheadRow) {
         const headerCells = Array.from(lastTheadRow.children).filter(
@@ -75,7 +144,6 @@ export function captureElementContext(el: Element): string {
         }
       }
       if (!headerText) {
-        // 备选：所有 th 中按序取
         const allHeaders = table.querySelectorAll('thead th, thead td');
         if (idx < allHeaders.length) {
           headerText = (allHeaders[idx].textContent || '').trim().slice(0, 30);
@@ -90,7 +158,9 @@ export function captureElementContext(el: Element): string {
     const nextText = nextCell ? (nextCell.textContent || '').trim().slice(0, 20) : '';
 
     const label = headerText || ownText || `第${idx + 1}列`;
-    let desc = tag === 'th' ? `表格「${label}」列` : `表格「${label}」列的单元格`;
+    const prefix = captureContainerPrefix(el);
+    let desc = `${prefix}表格「${label}」列`;
+    if (tag !== 'th') desc = `${prefix}表格「${label}」列的单元格`;
     desc += `（第${idx + 1}列`;
     if (prevText) desc += `，"${prevText}"左侧`;
     if (nextText) desc += `，"${nextText}"右侧`;
@@ -108,8 +178,9 @@ export function captureElementContext(el: Element): string {
       ownText ||
       (el.querySelector('span')?.textContent || '').trim().slice(0, 30) ||
       (el.getAttribute('aria-label') || '').slice(0, 30);
-    if (btnText) return `按钮「${btnText}」`;
-    return '按钮';
+    const prefix = captureContainerPrefix(el);
+    if (btnText) return `${prefix}按钮「${btnText}」`;
+    return `${prefix}按钮`;
   }
 
   // ── 表单输入 ─────────────────────────────────────────────
@@ -127,19 +198,21 @@ export function captureElementContext(el: Element): string {
       input.name ||
       input.getAttribute('aria-label') ||
       ownText;
-    if (desc) return `表单字段「${desc}」`;
-    return '表单输入框';
+    const prefix = captureContainerPrefix(el);
+    if (desc) return `${prefix}表单字段「${desc}」`;
+    return `${prefix}表单输入框`;
   }
 
   // ── 带文字的通用元素 ─────────────────────────────────────
   if (ownText) {
     const cls = el.className.toLowerCase();
-    if (cls.includes('title') || /h[1-6]/i.test(tag)) return `标题「${ownText}」`;
-    if (cls.includes('label') || tag === 'label') return `标签「${ownText}」`;
-    if (cls.includes('tab')) return `标签页「${ownText}」`;
+    const prefix = captureContainerPrefix(el);
+    if (cls.includes('title') || /h[1-6]/i.test(tag)) return `${prefix}标题「${ownText}」`;
+    if (cls.includes('label') || tag === 'label') return `${prefix}标签「${ownText}」`;
+    if (cls.includes('tab')) return `${prefix}标签页「${ownText}」`;
     if (cls.includes('menu') || cls.includes('nav') || tag === 'a')
-      return `菜单项「${ownText}」`;
-    return `元素「${ownText}」`;
+      return `${prefix}菜单项「${ownText}」`;
+    return `${prefix}元素「${ownText}」`;
   }
 
   return _fallback(tag, '');

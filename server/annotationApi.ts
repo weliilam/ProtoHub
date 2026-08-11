@@ -13,6 +13,15 @@ export interface Annotation {
   text: string;
   elementText?: string; // 目标元素的文本内容（用于漂移兜底匹配）
   elementDescription?: string; // 富上下文描述（供 AI 精准定位源码）
+  /** 源码特征索引命中的精确位置：文件 + 行号 + 代码原文，供 AI 直接定位 */
+  elementSource?: {
+    file: string;
+    line: number;
+    code: string;
+    kind: string;
+    label: string;
+    container: string;
+  };
   status: 'open' | 'done' | 'resolved';
   createdAt: string;
   resolvedBy?: string; // 标记完成时使用的 AI 模型名称
@@ -74,6 +83,7 @@ export function annotationApiPlugin(): Plugin {
               text: body.text.trim(),
               elementText: (body as any).elementText?.trim(),
               elementDescription: (body as any).elementDescription?.trim(),
+              elementSource: (body as any).elementSource && typeof (body as any).elementSource === 'object' ? (body as any).elementSource : undefined,
               status: body.status || 'open',
               createdAt: body.createdAt || new Date().toISOString(),
             };
