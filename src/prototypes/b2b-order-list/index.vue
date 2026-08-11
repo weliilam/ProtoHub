@@ -733,9 +733,6 @@
             选择导入文件
           </a-button>
         </a-upload>
-        <div v-if="!addrFileList.length" class="bol-import-upload-tip">
-          仅支持 .xlsx，表头：运单号、审核状态、收件人姓名、省/州、城市、地址1、地址2、邮编、电话、收件人公司名称、邮箱
-        </div>
       </div>
 
       <div v-if="addrPreviewRows.length" class="bol-import-tips">
