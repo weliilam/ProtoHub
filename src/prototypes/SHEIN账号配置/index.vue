@@ -14,7 +14,7 @@
           <span class="pac-search-label">关键词</span>
           <a-input
             v-model:value="keyword"
-            placeholder="搜索 客户代码 / 客户名称 / 仓库代码 / 地址"
+            placeholder="搜索 客户代码 / 客户名称 / 仓库代码 / SHEIN仓库ID / 地址"
             allow-clear
             class="pac-input"
             @press-enter="onSearch"
@@ -40,7 +40,7 @@
       <a-space>
         <a-button type="primary" @click="openCreate">
           <template #icon><PlusOutlined /></template>
-          新增地址配置
+          新增商家配置
         </a-button>
       </a-space>
       <a-space>
@@ -79,7 +79,7 @@
 
     <a-modal
       v-model:open="modalOpen"
-      :title="editingId !== null ? '编辑地址配置' : '新增地址配置'"
+      :title="editingId !== null ? '编辑地址配置' : '新增商家配置'"
       :width="760"
       :mask-closable="false"
       @ok="submit"
@@ -117,6 +117,13 @@
             </a-form-item>
           </a-col>
           <a-col :span="12">
+            <a-form-item label="SHEIN仓库ID (shein_warehouse_id)" name="shein_warehouse_id">
+              <a-input v-model:value="form.shein_warehouse_id" placeholder="如 SW100001" />
+            </a-form-item>
+          </a-col>
+        </a-row>
+        <a-row :gutter="16">
+          <a-col :span="12">
             <a-form-item label="地址代码 (address_code)" name="address_code">
               <a-input v-model:value="form.address_code" placeholder="如 W220678" />
             </a-form-item>
@@ -146,14 +153,14 @@ const typeColor = (v) => ({ '1': 'gold', '2': 'blue', '3': 'green' }[v] || 'defa
 const typeLabel = (v) => typeOptions.find((o) => o.value === v)?.label || v
 
 const seed = [
-  { supplier_id: 18054795, customer_code: 'BCNHC54308', customer_name: 'PANASIA SYNERGY LIMITED', warehouse_code: 'W220678', address_code: 'W220678', address_type: '2', address: '肇庆市肇庆市鼎湖区永安镇社周路9号鼎湖京东13号仓13-21门/13-22门' },
-  { supplier_id: 18077695, customer_code: 'BCNHC75062', customer_name: 'HUA RUI CLOUD TECH LIMITED', warehouse_code: 'W220266', address_code: 'W220266', address_type: '2', address: '广东省肇庆市鼎湖区永安镇社周路9号鼎湖京东13号仓13-21门/13-22门' },
-  { supplier_id: 18181053, customer_code: 'BCNHC91043', customer_name: 'PING CONSULTING SPÓŁKA Z OGRANICZONĄ ODPOWIEDZIALNOŚCIĄ', warehouse_code: 'W220875', address_code: 'W220875', address_type: '2', address: '广东省肇庆市鼎湖区永安镇社周路9号鼎湖京东13号仓13-21门/13-22门' },
-  { supplier_id: 18181041, customer_code: 'BCNHC91043', customer_name: 'PING CONSULTING SPÓŁKA Z OGRANICZONĄ ODPOWIEDZIALNOŚCIĄ', warehouse_code: 'W220875', address_code: 'W220875', address_type: '2', address: '广东省肇庆市鼎湖区永安镇社周路9号鼎湖京东13号仓13-21门/13-22门' },
-  { supplier_id: 18179761, customer_code: 'BCNHC91043', customer_name: 'PING CONSULTING SPÓŁKA Z OGRANICZONĄ ODPOWIEDZIALNOŚCIĄ', warehouse_code: 'W220875', address_code: 'W220875', address_type: '2', address: '广东省肇庆市鼎湖区永安镇社周路9号鼎湖京东13号仓13-21门/13-22门' },
-  { supplier_id: 18177590, customer_code: 'BCNHC91043', customer_name: 'PING CONSULTING SPÓŁKA Z OGRANICZONĄ ODPOWIEDZIALNOŚCIĄ', warehouse_code: 'W220875', address_code: 'W220875', address_type: '2', address: '广东省肇庆市鼎湖区永安镇社周路9号鼎湖京东13号仓13-21门/13-22门' },
-  { supplier_id: 18150500, customer_code: 'BCNHC91043', customer_name: 'PING CONSULTING SPÓŁKA Z OGRANICZONĄ ODPOWIEDZIALNOŚCIĄ', warehouse_code: 'W220875', address_code: 'W220875', address_type: '2', address: '广东省肇庆市鼎湖区永安镇社周路9号鼎湖京东13号仓13-21门/13-22门' },
-  { supplier_id: 18150387, customer_code: 'BCNHC91043', customer_name: 'PING CONSULTING SPÓŁKA Z OGRANICZONĄ ODPOWIEDZIALNOŚCIĄ', warehouse_code: 'W220875', address_code: 'W220875', address_type: '2', address: '广东省肇庆市鼎湖区永安镇社周路9号鼎湖京东13号仓13-21门/13-22门' }
+  { supplier_id: 18054795, customer_code: 'BCNHC54308', customer_name: 'PANASIA SYNERGY LIMITED', warehouse_code: 'W220678', shein_warehouse_id: 'SW100001', address_code: 'W220678', address_type: '2', address: '肇庆市肇庆市鼎湖区永安镇社周路9号鼎湖京东13号仓13-21门/13-22门' },
+  { supplier_id: 18077695, customer_code: 'BCNHC75062', customer_name: 'HUA RUI CLOUD TECH LIMITED', warehouse_code: 'W220266', shein_warehouse_id: 'SW100002', address_code: 'W220266', address_type: '2', address: '广东省肇庆市鼎湖区永安镇社周路9号鼎湖京东13号仓13-21门/13-22门' },
+  { supplier_id: 18181053, customer_code: 'BCNHC91043', customer_name: 'PING CONSULTING SPÓŁKA Z OGRANICZONĄ ODPOWIEDZIALNOŚCIĄ', warehouse_code: 'W220875', shein_warehouse_id: 'SW100003', address_code: 'W220875', address_type: '2', address: '广东省肇庆市鼎湖区永安镇社周路9号鼎湖京东13号仓13-21门/13-22门' },
+  { supplier_id: 18181041, customer_code: 'BCNHC91043', customer_name: 'PING CONSULTING SPÓŁKA Z OGRANICZONĄ ODPOWIEDZIALNOŚCIĄ', warehouse_code: 'W220875', shein_warehouse_id: 'SW100004', address_code: 'W220875', address_type: '2', address: '广东省肇庆市鼎湖区永安镇社周路9号鼎湖京东13号仓13-21门/13-22门' },
+  { supplier_id: 18179761, customer_code: 'BCNHC91043', customer_name: 'PING CONSULTING SPÓŁKA Z OGRANICZONĄ ODPOWIEDZIALNOŚCIĄ', warehouse_code: 'W220875', shein_warehouse_id: 'SW100005', address_code: 'W220875', address_type: '2', address: '广东省肇庆市鼎湖区永安镇社周路9号鼎湖京东13号仓13-21门/13-22门' },
+  { supplier_id: 18177590, customer_code: 'BCNHC91043', customer_name: 'PING CONSULTING SPÓŁKA Z OGRANICZONĄ ODPOWIEDZIALNOŚCIĄ', warehouse_code: 'W220875', shein_warehouse_id: 'SW100006', address_code: 'W220875', address_type: '2', address: '广东省肇庆市鼎湖区永安镇社周路9号鼎湖京东13号仓13-21门/13-22门' },
+  { supplier_id: 18150500, customer_code: 'BCNHC91043', customer_name: 'PING CONSULTING SPÓŁKA Z OGRANICZONĄ ODPOWIEDZIALNOŚCIĄ', warehouse_code: 'W220875', shein_warehouse_id: 'SW100007', address_code: 'W220875', address_type: '2', address: '广东省肇庆市鼎湖区永安镇社周路9号鼎湖京东13号仓13-21门/13-22门' },
+  { supplier_id: 18150387, customer_code: 'BCNHC91043', customer_name: 'PING CONSULTING SPÓŁKA Z OGRANICZONĄ ODPOWIEDZIALNOŚCIĄ', warehouse_code: 'W220875', shein_warehouse_id: 'SW100008', address_code: 'W220875', address_type: '2', address: '广东省肇庆市鼎湖区永安镇社周路9号鼎湖京东13号仓13-21门/13-22门' }
 ]
 
 const loadFromStorage = () => {
@@ -178,7 +185,7 @@ const filtered = computed(() => {
   return list.filter((r) => {
     if (filterType.value && r.address_type !== filterType.value) return false
     if (kw) {
-      const hay = `${r.customer_code}${r.customer_name}${r.warehouse_code}${r.address}`.toLowerCase()
+      const hay = `${r.customer_code}${r.customer_name}${r.warehouse_code}${r.shein_warehouse_id}${r.address}`.toLowerCase()
       if (!hay.includes(kw)) return false
     }
     return true
@@ -196,12 +203,11 @@ const resetFilters = () => { keyword.value = ''; filterType.value = undefined; p
 const onTableChange = (p) => { pagination.current = p.current; pagination.pageSize = p.pageSize }
 
 const columns = [
-  { title: '供应商ID', dataIndex: 'supplier_id', key: 'supplier_id', width: 120, fixed: 'left' },
+  { title: 'SHEIN店铺ID', dataIndex: 'supplier_id', key: 'supplier_id', width: 120, fixed: 'left' },
   { title: '客户代码', dataIndex: 'customer_code', key: 'customer_code', width: 140 },
   { title: '客户名称', dataIndex: 'customer_name', key: 'customer_name', width: 280, ellipsis: true },
+  { title: 'SHEIN仓库ID', dataIndex: 'shein_warehouse_id', key: 'shein_warehouse_id', width: 150 },
   { title: '仓库代码', dataIndex: 'warehouse_code', key: 'warehouse_code', width: 130 },
-  { title: '地址代码', dataIndex: 'address_code', key: 'address_code', width: 130 },
-  { title: '地址类型', dataIndex: 'address_type', key: 'address_type', width: 120 },
   { title: '详细地址', dataIndex: 'address', key: 'address', width: 360, ellipsis: true },
   { title: '操作', key: 'action', width: 110, fixed: 'right' }
 ]
@@ -215,12 +221,13 @@ const nextSupplierId = computed(() => {
 })
 const form = reactive({
   supplier_id: null, customer_code: '', customer_name: '', warehouse_code: '',
-  address_code: '', address_type: undefined, address: ''
+  shein_warehouse_id: '', address_code: '', address_type: undefined, address: ''
 })
 const rules = {
   customer_code: [{ required: true, message: '请输入客户代码' }],
   customer_name: [{ required: true, message: '请输入客户名称' }],
   warehouse_code: [{ required: true, message: '请输入仓库代码' }],
+  shein_warehouse_id: [{ required: true, message: '请输入SHEIN仓库ID' }],
   address_code: [{ required: true, message: '请输入地址代码' }],
   address_type: [{ required: true, message: '请选择地址类型' }],
   address: [{ required: true, message: '请输入详细地址' }]
@@ -230,7 +237,7 @@ const openCreate = () => {
   editingId.value = null
   Object.assign(form, {
     supplier_id: nextSupplierId.value, customer_code: '', customer_name: '',
-    warehouse_code: '', address_code: '', address_type: undefined, address: ''
+    warehouse_code: '', shein_warehouse_id: '', address_code: '', address_type: undefined, address: ''
   })
   modalOpen.value = true
 }
@@ -248,6 +255,7 @@ const submit = () => {
       customer_code: form.customer_code,
       customer_name: form.customer_name,
       warehouse_code: form.warehouse_code,
+      shein_warehouse_id: form.shein_warehouse_id,
       address_code: form.address_code,
       address_type: form.address_type,
       address: form.address
