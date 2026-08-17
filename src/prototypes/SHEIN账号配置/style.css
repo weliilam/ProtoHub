@@ -127,11 +127,6 @@
   color: rgba(0, 0, 0, 0.85);
 }
 
-.pac-map-tip {
-  font-size: 12px;
-  color: rgba(0, 0, 0, 0.45);
-}
-
 .pac-map-table {
   background: #fafafa;
   border: 1px solid #f0f0f0;
@@ -141,7 +136,7 @@
 
 .pac-map-row {
   display: grid;
-  grid-template-columns: 1fr 1fr 60px;
+  grid-template-columns: 1fr 1fr 2fr 60px;
   gap: 8px;
   align-items: center;
   margin-bottom: 8px;
