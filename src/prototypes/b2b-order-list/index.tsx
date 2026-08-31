@@ -61,6 +61,7 @@ interface OrderRecord {
   warehouseCode: string;     // 仓库代码
   sortingCode: string;       // 分拣码
   billStatus: string;        // 入账状态
+  rebillType?: number;       // 重计费类型（PQM 回调 rebill_type 写入：1 重量勘误 / 2 复核材积 / 3 换箱改材积 / 4 价格更新）
 }
 
 interface FilterState {
@@ -69,7 +70,7 @@ interface FilterState {
   createTimeRange: [string, string] | undefined;
   orderType: string | undefined;
   orderStatus: string[] | undefined;
-  auditStatus: string | undefined;
+  auditStatus: string[] | undefined;
   salesProduct: string[] | null;
   destCountry: string | undefined;
   channelCode: string | undefined;
@@ -86,6 +87,7 @@ interface FilterState {
   addressAuditStatus: string | undefined;
   isIntercepted: string | undefined;
   billingResult: string | undefined;
+  rebillType: number[] | undefined; // 重计费类型（多选）
   isFirstBatch: string | undefined;
   latestFollowUp: string;
 }
@@ -148,6 +150,13 @@ const BILLING_RESULT_OPTIONS = [
   { value: 2, label: '欠费' },
   { value: 10, label: '计费成功' },
   { value: 20, label: '计费失败' },
+];
+// 重计费类型（PQM 回调 rebill_type 写入：1 重量勘误 / 2 复核材积 / 3 换箱改材积 / 4 价格更新）
+const REBILL_TYPE_OPTIONS = [
+  { value: 1, label: '重量勘误' },
+  { value: 2, label: '复核材积' },
+  { value: 3, label: '换箱改材积' },
+  { value: 4, label: '价格更新' },
 ];
 
 // 额外服务 / 费用项 选项（原型演示）
@@ -409,7 +418,7 @@ const B2BOrderList = () => {
     if (filters.b2bOrderNo && !r.b2bOrderNo.toLowerCase().includes(filters.b2bOrderNo.toLowerCase())) return false;
     if (filters.orderType && r.orderType !== filters.orderType) return false;
     if (filters.orderStatus && filters.orderStatus.length > 0 && !filters.orderStatus.includes(r.orderStatus)) return false;
-    if (filters.auditStatus && r.auditStatus !== filters.auditStatus) return false;
+    if (filters.auditStatus && filters.auditStatus.length > 0 && !filters.auditStatus.includes(r.auditStatus)) return false;
     if (filters.customerCode && !r.customerCode.toLowerCase().includes(filters.customerCode.toLowerCase())) return false;
     if (filters.salesman && !r.salesman.includes(filters.salesman)) return false;
     if (filters.isFirstBatch !== undefined) {
@@ -942,7 +951,7 @@ const B2BOrderList = () => {
             </Col>
             <Col span={6}>
               <Form.Item name="auditStatus" label="审核状态" className="bol-form-item">
-                <Select placeholder="请选择" allowClear options={AUDIT_STATUS_OPTIONS} showSearch />
+                <Select placeholder="请选择" mode="multiple" maxTagCount={2} allowClear options={AUDIT_STATUS_OPTIONS} showSearch />
               </Form.Item>
             </Col>
 

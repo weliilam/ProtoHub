@@ -37,7 +37,7 @@
           </a-col>
           <a-col :span="6">
             <a-form-item label="审核状态" class="bol-form-item">
-              <a-select v-model:value="filters.auditStatus" placeholder="请选择" allow-clear :options="AUDIT_STATUS_OPTIONS" show-search style="width: 100%" />
+              <a-select v-model:value="filters.auditStatus" placeholder="请选择" mode="multiple" max-tag-count="2" allow-clear :options="AUDIT_STATUS_OPTIONS" show-search style="width: 100%" />
             </a-form-item>
           </a-col>
 
@@ -128,6 +128,11 @@
             <a-col :span="6">
               <a-form-item label="是否首批" class="bol-form-item">
                 <a-select v-model:value="filters.isFirstBatch" placeholder="请选择" allow-clear :options="YES_NO_OPTIONS" show-search style="width: 100%" />
+              </a-form-item>
+            </a-col>
+            <a-col :span="6">
+              <a-form-item label="重计费类型" class="bol-form-item">
+                <a-select v-model:value="filters.rebillType" placeholder="请选择（可多选）" allow-clear mode="multiple" :options="REBILL_TYPE_OPTIONS" style="width: 100%" />
               </a-form-item>
             </a-col>
             <a-col :span="6">
@@ -800,6 +805,7 @@ interface OrderRecord {
   chargeWeight: number; customsMode: string; taxMethod: string; deliveryType: number;
   chargeStatus: string; interceptStatus: string; interceptReason: string; serverHawbCode: string;
   consignee: string; warehouseCode: string; sortingCode: string; billStatus: string;
+  rebillType?: number; // 重计费类型（PQM 回调 rebill_type 写入：1 重量勘误 / 2 复核材积 / 3 换箱改材积 / 4 价格更新）
 }
 
 // ========================= Mock 数据 =========================
@@ -838,6 +844,11 @@ const ADDRESS_TYPE_OPTIONS = [
 const BILLING_RESULT_OPTIONS = [
   { value: 0, label: '未计费' }, { value: 1, label: '无需计费' }, { value: 2, label: '欠费' },
   { value: 10, label: '计费成功' }, { value: 20, label: '计费失败' },
+];
+// 重计费类型（PQM 回调 rebill_type 写入：1 重量勘误 / 2 复核材积 / 3 换箱改材积 / 4 价格更新）
+const REBILL_TYPE_OPTIONS = [
+  { value: 1, label: '重量勘误' }, { value: 2, label: '复核材积' },
+  { value: 3, label: '换箱改材积' }, { value: 4, label: '价格更新' },
 ];
 const EXTRA_SERVICE_OPTIONS = [
   { value: '10', label: '报关资料上传' }, { value: 'VAS_IP', label: '保价服务' }, { value: 'VAS_SIGN', label: '签单返回' },
@@ -922,6 +933,8 @@ const MOCK_DATA: OrderRecord[] = MOCK_BASE.map((r, i) => ({
   warehouseCode: r.warehouseCode ?? 'USLAX',
   sortingCode: r.sortingCode ?? `S${1000 + i}`,
   billStatus: r.billStatus ?? (i % 2 ? '已入账' : '未入账'),
+  // 重计费类型：模拟 PQM 回调（rebill_type）已写入；仅部分订单有值（1 重量勘误 / 2 复核材积 / 3 换箱改材积 / 4 价格更新）
+  rebillType: r.rebillType ?? (i % 4 === 1 ? [1, 2, 3, 4][i % 4] : undefined),
 }));
 
 const SALESMAN_OPTIONS = Array.from(new Set(MOCK_DATA.map(d => d.salesman).filter(Boolean))).map(v => ({ value: v, label: v }));
@@ -959,7 +972,7 @@ const expandSearch = ref(false);
 const filters = reactive({
   orderNo: '', b2bOrderNo: '', createTimeRange: null as any,
   orderType: undefined as string | undefined, orderStatus: undefined as string[] | undefined,
-  auditStatus: undefined as string | undefined, salesProduct: null as any,
+  auditStatus: undefined as string[] | undefined, salesProduct: null as any,
   destCountry: undefined as string | undefined, channelCode: undefined as string | undefined,
   salesman: undefined as string | undefined, customerCode: undefined as string | undefined,
   isCustoms: undefined as string | undefined, isSigned: undefined as string | undefined,
@@ -967,6 +980,7 @@ const filters = reactive({
   addressAuditStatus: undefined as string | undefined, detentionReason: undefined as string[] | undefined,
   isValueAddedDone: undefined as string | undefined, isLoadable: undefined as string | undefined,
   isIntercepted: undefined as string | undefined, billingResult: undefined as string | undefined,
+  rebillType: undefined as number[] | undefined, // 重计费类型（多选）
   isFirstBatch: undefined as string | undefined, latestFollowUp: '', followerFilter: '',
 });
 const selectedRowKeys = ref<string[]>([]);
@@ -1069,7 +1083,7 @@ const filteredData = computed(() => MOCK_DATA.filter((r) => {
   if (filters.b2bOrderNo && !r.b2bOrderNo.toLowerCase().includes(filters.b2bOrderNo.toLowerCase())) return false;
   if (filters.orderType && r.orderType !== filters.orderType) return false;
   if (filters.orderStatus && filters.orderStatus.length > 0 && !filters.orderStatus.includes(r.orderStatus)) return false;
-  if (filters.auditStatus && r.auditStatus !== filters.auditStatus) return false;
+  if (filters.auditStatus && filters.auditStatus.length > 0 && !filters.auditStatus.includes(r.auditStatus)) return false;
   if (filters.customerCode && !r.customerCode.toLowerCase().includes(filters.customerCode.toLowerCase())) return false;
   if (filters.salesman && !r.salesman.includes(filters.salesman)) return false;
   if (filters.isFirstBatch !== undefined) {
@@ -1083,6 +1097,7 @@ const filteredData = computed(() => MOCK_DATA.filter((r) => {
   if (filters.isIntercepted !== undefined && r.interceptStatus !== filters.isIntercepted) return false;
   if (filters.addressType !== undefined && r.addressType !== filters.addressType) return false;
   if (filters.billingResult !== undefined && Number(r.chargeStatus) !== Number(filters.billingResult)) return false;
+  if (filters.rebillType && filters.rebillType.length > 0 && !(r.rebillType != null && filters.rebillType.includes(r.rebillType))) return false;
   if (filters.detentionReason && filters.detentionReason.length > 0) {
     const reasons = MOCK_DETENTION[r.ytOrderNo];
     if (!reasons || !reasons.some(d => (filters.detentionReason as string[]).includes(d.reason))) return false;
@@ -1125,6 +1140,8 @@ const columns = [
   { title: '扣件完成时间', key: 'detentionFinishTime', width: 155 },
   { title: '签入时间', dataIndex: 'signInTime', key: 'signInTime', width: 155 },
   { title: '计费状态', dataIndex: 'chargeStatus', key: 'chargeStatus', width: 120, align: 'center' },
+  { title: '重计费类型', dataIndex: 'rebillType', key: 'rebillType', width: 120, align: 'center',
+    customRender: ({ record }: any) => REBILL_TYPE_OPTIONS.find((o: any) => o.value === record.rebillType)?.label ?? '-' },
   { title: '是否拦截', dataIndex: 'interceptStatus', key: 'interceptStatus', width: 100, align: 'center' },
   { title: '拦截原因', dataIndex: 'interceptReason', key: 'interceptReason', width: 140, ellipsis: true },
   { title: '服务商单号', dataIndex: 'serverHawbCode', key: 'serverHawbCode', width: 150 },
@@ -1361,9 +1378,52 @@ function submitPrint() {
   message.success(`已发送「${printTemplate.value === 'label' ? '标签' : '面单'}」打印任务（模拟）`);
   printOpen.value = false;
 }
+const EXPORT_COLUMN_MAP: Record<string, { headers: string[]; pick: (r: OrderRecord) => string[] }> = {
+  detail: {
+    headers: ['运单号', 'B2B单号', '客户单号', '订单状态', '创建时间', '订单类型', '客户代码', '目的国家', '重计费类型', '计费状态', '入账状态'],
+    pick: r => [r.ytOrderNo, r.b2bOrderNo, r.customerOrderNo, r.orderStatus, r.createTime, r.orderType, r.customerCode, r.countryName, REBILL_TYPE_OPTIONS.find((o: any) => o.value === r.rebillType)?.label ?? '', r.chargeStatus, r.billStatus],
+  },
+  declare: {
+    headers: ['运单号', '客户单号', '目的国家', '报关方式', '清关方案', '申报重量(kg)', '重计费类型'],
+    pick: r => [r.ytOrderNo, r.customerOrderNo, r.countryName, r.customsMode, r.taxMethod, String(r.chargeWeight), REBILL_TYPE_OPTIONS.find((o: any) => o.value === r.rebillType)?.label ?? ''],
+  },
+  charge: {
+    headers: ['运单号', 'B2B单号', '客户代码', '销售产品', '计费重(kg)', '计费状态', '重计费类型'],
+    pick: r => [r.ytOrderNo, r.b2bOrderNo, r.customerCode, r.salesProduct, String(r.chargeWeight), r.chargeStatus, REBILL_TYPE_OPTIONS.find((o: any) => o.value === r.rebillType)?.label ?? ''],
+  },
+  express: {
+    headers: ['运单号', '客户代码', '收件人', '目的国家', '预估重量(kg)', '重计费类型'],
+    pick: r => [r.ytOrderNo, r.customerCode, r.consignee, r.countryName, String(r.estimateWeight), REBILL_TYPE_OPTIONS.find((o: any) => o.value === r.rebillType)?.label ?? ''],
+  },
+  hl: {
+    headers: ['运单号', '客户代码', '收件人', '目的国家', '重计费类型'],
+    pick: r => [r.ytOrderNo, r.customerCode, r.consignee, r.countryName, REBILL_TYPE_OPTIONS.find((o: any) => o.value === r.rebillType)?.label ?? ''],
+  },
+  ship: {
+    headers: ['运单号', 'B2B单号', '订单状态', '签入时间', '重计费类型'],
+    pick: r => [r.ytOrderNo, r.b2bOrderNo, r.orderStatus, r.signInTime, REBILL_TYPE_OPTIONS.find((o: any) => o.value === r.rebillType)?.label ?? ''],
+  },
+  sign: {
+    headers: ['运单号', 'B2B单号', '订单状态', '签入时间', '重计费类型'],
+    pick: r => [r.ytOrderNo, r.b2bOrderNo, r.orderStatus, r.signInTime, REBILL_TYPE_OPTIONS.find((o: any) => o.value === r.rebillType)?.label ?? ''],
+  },
+  board: {
+    headers: ['运单号', 'B2B单号', '订单状态', '目的国家', '客户代码', '业务员', '重计费类型'],
+    pick: r => [r.ytOrderNo, r.b2bOrderNo, r.orderStatus, r.countryName, r.customerCode, r.salesman, REBILL_TYPE_OPTIONS.find((o: any) => o.value === r.rebillType)?.label ?? ''],
+  },
+};
 function submitExport() {
   const t = EXPORT_TYPES.find((e: any) => e.key === exportKey.value);
-  message.success(`已发起「${t?.label}」导出（范围：${exportOption.value === 'selected' ? '勾选数据' : '全部数据'}）（模拟）`);
+  if (!t) return;
+  const rows = exportOption.value === 'selected' ? selectedRecords() : filteredData.value;
+  if (rows.length === 0) { message.warning('没有可导出的数据'); return; }
+  const cfg = EXPORT_COLUMN_MAP[t.key];
+  if (cfg) {
+    downloadCSV(`${t.label}_${new Date().toISOString().slice(0, 10)}.csv`, cfg.headers, rows.map(cfg.pick));
+    message.success(`已导出 ${rows.length} 条「${t.label}」`);
+  } else {
+    message.success(`已发起「${t?.label}」导出（范围：${exportOption.value === 'selected' ? '勾选数据' : '全部数据'}）（模拟）`);
+  }
   exportOpen.value = false;
 }
 function copyColumns() {
