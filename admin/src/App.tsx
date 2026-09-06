@@ -133,9 +133,14 @@ export default function App() {
   // 源码特征索引匹配：点选元素后异步命中源码位置（null=匹配中，[] = 无命中）
   const [pickMatches, setPickMatches] = useState<SourceMatch[] | null>(null);
   const [pickMatchIdx, setPickMatchIdx] = useState(0);
+  /** 命中的源码位置是放宽容器约束后得到的（所属容器未能确认，仅供参考） */
+  const pickLoose = !!pickMatches && pickMatches.some((m) => m.loose);
+  /** 命中的源码位置来自 React 运行时溯源（编译期坐标，精确） */
+  const pickTrace = !!pickMatches && pickMatches.some((m) => m.trace);
   const [undoStack, setUndoStack] = useState<UndoAction[]>([]);
-  // 找不到对应元素的失效批注（可能已被 AI 改动删除/结构变化）
-  const [orphanAnnotations, setOrphanAnnotations] = useState<Annotation[]>([]);
+  // 批注解析结果：元素已不存在 / 当前视图不可见（在其他页签、未打开的弹窗）
+  const [missingAnnotations, setMissingAnnotations] = useState<Annotation[]>([]);
+  const [hiddenAnnotations, setHiddenAnnotations] = useState<Annotation[]>([]);
   const [cmdkOpen, setCmdkOpen] = useState(false);
   const [closingPanel, setClosingPanel] = useState(false); // 面板关闭动画状态
   const { mode, toggle: toggleTheme } = useTheme();
@@ -301,6 +306,8 @@ export default function App() {
         .matchPrototypeSource(selected.name, {
           description: picked.elementDescription || '',
           text: picked.elementText || '',
+          traceFile: picked.sourceFile,
+          traceLine: picked.sourceLine,
         })
         .then((matches) => {
           setPickMatches(matches || []);
@@ -361,6 +368,10 @@ export default function App() {
         text: annotationText.trim(),
         elementText: pendingPick.elementText,
         elementDescription: pendingPick.elementDescription,
+        elementPane: pendingPick.elementPane,
+        elementPath: pendingPick.elementPath,
+        elementContainer: pendingPick.elementContainer,
+        elementSiblings: pendingPick.elementSiblings,
         elementSource: pickMatches && pickMatches.length > 0 ? pickMatches[pickMatchIdx] : undefined,
       });
       setAnnotations(await api.listAnnotations(selected.name));
@@ -398,15 +409,21 @@ export default function App() {
     ]);
   };
 
+  // 标记层解析结果回调（首次渲染 + 切页签等 DOM 变化重排后都会触发）
+  const handleAnnotationResolve = useCallback((missing: Annotation[], hidden: Annotation[]) => {
+    setMissingAnnotations(missing);
+    setHiddenAnnotations(hidden);
+  }, []);
+
   // 一键删除所有失效批注（元素已不存在，批注失去定位意义）
-  const deleteOrphans = async (ids: string[]) => {
+  const deleteMissing = async (ids: string[]) => {
     if (!selected || ids.length === 0) return;
     const toDelete = annotations.filter((a) => ids.includes(a.id));
     for (const a of toDelete) {
       await api.deleteAnnotation(a.id);
     }
     setAnnotations(await api.listAnnotations(selected.name));
-    setOrphanAnnotations([]);
+    setMissingAnnotations([]);
     setUndoStack((s) => [...s, ...toDelete.map((a) => ({ kind: 'delete', annotation: a }))]);
     message.success('已清理失效批注');
   };
@@ -679,7 +696,7 @@ export default function App() {
                 }
               }}
               onUndo={undo}
-              onOrphans={setOrphanAnnotations}
+              onResolve={handleAnnotationResolve}
             />
           </>
         ) : selected.type === 'doc' ? (
@@ -711,8 +728,9 @@ export default function App() {
           onDelete={deleteAnnotation}
           onApplied={() => setRefreshKey((k) => k + 1)}
           onMarkDone={markAnnotationsDone}
-          orphanAnnotations={orphanAnnotations}
-          onDeleteOrphans={deleteOrphans}
+          missingAnnotations={missingAnnotations}
+          hiddenAnnotations={hiddenAnnotations}
+          onDeleteMissing={deleteMissing}
           canUndo={undoStack.length > 0}
           onUndo={undo}
         />
@@ -745,10 +763,20 @@ export default function App() {
             }}
           >
             <div style={{ marginBottom: 6, fontSize: 12 }}>
-              <Tag color="green" style={{ marginRight: 6 }}>
-                已定位源码
+              <Tag color={pickLoose ? 'orange' : 'green'} style={{ marginRight: 6 }}>
+                {pickTrace
+                  ? '已定位源码（运行时溯源）'
+                  : pickLoose
+                    ? '已定位源码（容器未确认）'
+                    : '已定位源码'}
               </Tag>
-              <span style={{ color: 'var(--ph-text-secondary)' }}>AI 将优先修改以下位置：</span>
+              <span style={{ color: 'var(--ph-text-secondary)' }}>
+                {pickTrace
+                  ? '由 React 运行时直接取到该元素的源码坐标，位置精确：'
+                  : pickLoose
+                    ? '未能在源码中确认所属容器（多为页签 / 弹窗内的元素），请核对是否为你要改的位置：'
+                    : 'AI 将优先修改以下位置：'}
+              </span>
             </div>
             <Radio.Group value={pickMatchIdx} onChange={(e) => setPickMatchIdx(e.target.value)} style={{ width: '100%' }}>
               <Space direction="vertical" size={4} style={{ width: '100%' }}>

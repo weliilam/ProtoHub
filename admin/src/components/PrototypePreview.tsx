@@ -14,8 +14,13 @@ interface Props {
   onMarkerClick: (a: Annotation) => void;
   onCancelPick: () => void;
   onUndo: () => void;
-  /** 找不到对应元素的失效批注（可能已被 AI 删除/结构变化） */
-  onOrphans?: (orphan: Annotation[]) => void;
+  /**
+   * 批注解析结果：
+   * - missing：元素已不存在（可能已被 AI 改动删除 / 结构变化）
+   * - hidden：元素仍在，但当前视图不可见（在其他页签 / 未打开的弹窗）
+   * 由标记层在首次渲染及 DOM 变化重排后回调。
+   */
+  onResolve?: (missing: Annotation[], hidden: Annotation[]) => void;
 }
 
 const DEVICE_WIDTH: Record<Props['device'], string> = {
@@ -25,7 +30,7 @@ const DEVICE_WIDTH: Record<Props['device'], string> = {
 };
 
 export default function PrototypePreview(props: Props) {
-  const { item, device, refreshKey, annotationMode, annotations, onPick, onMarkerClick, onCancelPick, onUndo, onOrphans } = props;
+  const { item, device, refreshKey, annotationMode, annotations, onPick, onMarkerClick, onCancelPick, onUndo, onResolve } = props;
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const pickingCleanupRef = useRef<(() => void) | null>(null);
   const markerCleanupRef = useRef<(() => void) | null>(null);
@@ -109,9 +114,11 @@ export default function PrototypePreview(props: Props) {
     const doc = getDoc();
     if (!doc) return;
     markerCleanupRef.current?.();
-    const { cleanup, orphan } = renderMarkers(doc, annotations, onMarkerClick);
+    const { cleanup, missing, hidden } = renderMarkers(doc, annotations, onMarkerClick, (r) =>
+      onResolve?.(r.missing, r.hidden),
+    );
     markerCleanupRef.current = cleanup;
-    onOrphans?.(orphan);
+    onResolve?.(missing, hidden);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [annotations, refreshKey, item.name]);
 
@@ -122,9 +129,13 @@ export default function PrototypePreview(props: Props) {
     const doc = getDoc();
     if (!doc) return;
     try {
-      const { cleanup, orphan } = renderMarkers(doc, annotations, onMarkerClick);
+      // 先卸载上一批标记（含滚动监听与 MutationObserver），避免重复渲染
+      markerCleanupRef.current?.();
+      const { cleanup, missing, hidden } = renderMarkers(doc, annotations, onMarkerClick, (r) =>
+        onResolve?.(r.missing, r.hidden),
+      );
       markerCleanupRef.current = cleanup;
-      onOrphans?.(orphan);
+      onResolve?.(missing, hidden);
       if (annotationMode) {
         stopPicking();
         pickingCleanupRef.current = enablePicking(doc, onPick);
@@ -133,7 +144,7 @@ export default function PrototypePreview(props: Props) {
       // 跨域或 sandbox 限制导致 doc 不可用，忽略
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [annotations, annotationMode, onPick, onMarkerClick, onOrphans]);
+  }, [annotations, annotationMode, onPick, onMarkerClick, onResolve]);
 
   const handleError = useCallback(() => {
     setIframeError(true);

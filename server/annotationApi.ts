@@ -13,6 +13,10 @@ export interface Annotation {
   text: string;
   elementText?: string; // 目标元素的文本内容（用于漂移兜底匹配）
   elementDescription?: string; // 富上下文描述（供 AI 精准定位源码）
+  elementPane?: string; // 元素所属的标签页（Tab pane）标识，用于多 sheet 隔离批注
+  elementPath?: string; // 元素到 body 的 DOM 结构路径，选择器漂移时用于结构相似度比对
+  elementContainer?: string; // 元素所在 UI 容器标题（弹窗 / 抽屉 / 卡片），跨容器同名元素消歧
+  elementSiblings?: string; // 相邻兄弟元素文字（"前文||后文"），同名元素消歧
   /** 源码特征索引命中的精确位置：文件 + 行号 + 代码原文，供 AI 直接定位 */
   elementSource?: {
     file: string;
@@ -83,6 +87,10 @@ export function annotationApiPlugin(): Plugin {
               text: body.text.trim(),
               elementText: (body as any).elementText?.trim(),
               elementDescription: (body as any).elementDescription?.trim(),
+              elementPane: (body as any).elementPane?.trim(),
+              elementPath: (body as any).elementPath?.trim(),
+              elementContainer: (body as any).elementContainer?.trim(),
+              elementSiblings: (body as any).elementSiblings?.trim(),
               elementSource: (body as any).elementSource && typeof (body as any).elementSource === 'object' ? (body as any).elementSource : undefined,
               status: body.status || 'open',
               createdAt: body.createdAt || new Date().toISOString(),

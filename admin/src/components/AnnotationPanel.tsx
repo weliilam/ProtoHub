@@ -4,6 +4,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { api } from '../api';
 import { aiRunStore } from '../aiRunStore';
 import { getAiModel, getAiModelLabel } from '../aiModelStore';
+import { annotationPaneLabel } from '../annotation';
 import type { Annotation, CliStatus } from '../types';
 
 /** 从 CSS 选择器中提炼出友好标签（取最后一个有意义的 class 名 + 元素名） */
@@ -30,10 +31,12 @@ interface Props {
   onApplied?: () => void;
   /** 发布成功后把已勾选批注标记为已完成（让页面标记变绿），并记录使用的 AI 模型 */
   onMarkDone?: (ids: string[], resolvedBy?: string) => Promise<void>;
-  /** 找不到对应元素的失效批注 */
-  orphanAnnotations?: Annotation[];
-  /** 一键删除失效批注 */
-  onDeleteOrphans?: (ids: string[]) => Promise<void>;
+  /** 元素已不存在的失效批注 */
+  missingAnnotations?: Annotation[];
+  /** 元素仍在但当前视图不可见的批注（在其他页签 / 未打开的弹窗） */
+  hiddenAnnotations?: Annotation[];
+  /** 一键删除失效批注（仅针对元素已不存在的） */
+  onDeleteMissing?: (ids: string[]) => Promise<void>;
   canUndo?: boolean;
   onUndo?: () => void;
 }
@@ -102,7 +105,7 @@ const DIFF_STYLE: React.CSSProperties = {
   fontFamily: 'monospace',
 };
 
-export default function AnnotationPanel({ target, annotations, onToggleStatus, onDelete, onApplied, onMarkDone, orphanAnnotations = [], onDeleteOrphans, canUndo, onUndo }: Props) {
+export default function AnnotationPanel({ target, annotations, onToggleStatus, onDelete, onApplied, onMarkDone, missingAnnotations = [], hiddenAnnotations = [], onDeleteMissing, canUndo, onUndo }: Props) {
   const [publishing, setPublishing] = useState(false);
   const [liveOutput, setLiveOutput] = useState('');
   const [liveThinking, setLiveThinking] = useState('');
@@ -470,7 +473,34 @@ export default function AnnotationPanel({ target, annotations, onToggleStatus, o
             </Button>
           </div>
         </div>
-        {orphanAnnotations.length > 0 && (
+        {hiddenAnnotations.length > 0 && (
+          <div
+            style={{
+              marginBottom: 12,
+              padding: 10,
+              border: '1px solid var(--ph-anno-highlight-border)',
+              background: 'var(--ph-anno-highlight-bg)',
+              borderRadius: 8,
+            }}
+          >
+            <div style={{ fontSize: 12, color: 'var(--ph-anno-title-color)', marginBottom: 6 }}>
+              有 {hiddenAnnotations.length} 条批注的元素不在当前视图（在其它页签或未打开的弹窗中），
+              对应页签上已用红点标出数量，切换后即可看到标记：
+            </div>
+            <Space direction="vertical" size={4} style={{ width: '100%' }}>
+              {hiddenAnnotations.map((a) => {
+                const pane = annotationPaneLabel(a);
+                return (
+                  <div key={a.id} style={{ fontSize: 12, color: 'var(--ph-anno-section-title)' }}>
+                    • {a.text}
+                    {pane && <span style={{ opacity: 0.7 }}>（「{pane}」页签）</span>}
+                  </div>
+                );
+              })}
+            </Space>
+          </div>
+        )}
+        {missingAnnotations.length > 0 && (
           <div
             style={{
               marginBottom: 12,
@@ -481,23 +511,23 @@ export default function AnnotationPanel({ target, annotations, onToggleStatus, o
             }}
           >
             <div style={{ fontSize: 12, color: 'var(--ph-anno-warn-color)', marginBottom: 6 }}>
-              有 {orphanAnnotations.length} 条批注对应的页面元素已不存在（可能已被 AI 改动删除/结构变化），标记已无法显示：
+              有 {missingAnnotations.length} 条批注对应的页面元素已不存在（可能已被 AI 改动删除/结构变化），标记已无法显示：
             </div>
             <Space direction="vertical" size={4} style={{ width: '100%' }}>
-              {orphanAnnotations.map((a) => (
+              {missingAnnotations.map((a) => (
                 <div key={a.id} style={{ fontSize: 12, color: 'var(--ph-anno-section-title)' }}>
                   • {a.text}
                 </div>
               ))}
             </Space>
-            {onDeleteOrphans && (
+            {onDeleteMissing && (
               <Popconfirm
-                title={`确认删除 ${orphanAnnotations.length} 条失效批注？`}
+                title={`确认删除 ${missingAnnotations.length} 条失效批注？`}
                 description="这些批注对应的页面元素已不存在，删除后不可恢复"
                 okText="删除"
                 cancelText="取消"
                 okButtonProps={{ danger: true }}
-                onConfirm={() => onDeleteOrphans(orphanAnnotations.map((a) => a.id))}
+                onConfirm={() => onDeleteMissing(missingAnnotations.map((a) => a.id))}
               >
                 <Button size="small" danger style={{ marginTop: 8 }}>
                   一键清理失效批注
@@ -638,6 +668,13 @@ export default function AnnotationPanel({ target, annotations, onToggleStatus, o
                 <Typography.Text type="secondary" style={{ fontSize: 11 }}>
                   标注元素：{a.elementDescription || a.elementText || friendlySelectorHint(a.selector)}
                 </Typography.Text>
+                {annotationPaneLabel(a) && (
+                  <div style={{ marginTop: 4 }}>
+                    <Tag color="purple" style={{ fontSize: 11, marginInlineEnd: 0 }}>
+                      「{annotationPaneLabel(a)}」页签
+                    </Tag>
+                  </div>
+                )}
                 <div style={{ marginTop: 8 }}>
                   <Space size={4}>
                     <Button

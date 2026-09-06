@@ -131,10 +131,20 @@ export const api = {
   // 批注
   listAnnotations: (target: string) => request<Annotation[]>(`/api/annotations?target=${encodeURIComponent(target)}`),
   /** 用批注描述 + 元素文字去源码特征索引里匹配，返回命中的源码位置（按分数降序 top3） */
-  matchPrototypeSource: (target: string, picked: { description?: string; text?: string }) =>
+  matchPrototypeSource: (
+    target: string,
+    picked: { description?: string; text?: string; traceFile?: string; traceLine?: number },
+  ) =>
     request<SourceMatch[]>('/api/prototype-index/match', {
       method: 'POST',
-      body: JSON.stringify({ target, description: picked.description || '', text: picked.text || '' }),
+      body: JSON.stringify({
+        target,
+        description: picked.description || '',
+        text: picked.text || '',
+        // React 原型点选时由 fiber 拿到的精确坐标，服务端会直接采用并回带该行代码原文
+        traceFile: picked.traceFile,
+        traceLine: picked.traceLine,
+      }),
     }),
   createAnnotation: (data: Partial<Annotation>) =>
     request<Annotation>('/api/annotations', { method: 'POST', body: JSON.stringify(data) }),
