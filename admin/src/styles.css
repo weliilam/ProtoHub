@@ -470,6 +470,52 @@ body {
   top: 0;
 }
 
+/* 跨分组拖入：分组头作为放置目标 */
+.ph-folder-header.drop-target {
+  background: var(--ph-hover-bg);
+  outline: 1px dashed var(--ph-accent);
+  outline-offset: -1px;
+}
+
+/* 空分组的提示区本身就是放置目标 */
+.ph-folder-empty {
+  margin: 2px 8px;
+  padding: 8px 12px;
+  font-size: 12px;
+  color: var(--ph-sidebar-meta);
+  text-align: center;
+  border: 1px dashed transparent;
+  border-radius: 6px;
+  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+
+.ph-folder-empty.drop-active {
+  border-color: var(--ph-accent);
+  color: var(--ph-accent);
+  background: var(--ph-hover-bg);
+}
+
+/* 未分组区：把分组内的原型拖出来即移出分组 */
+.ph-ungrouped-zone {
+  margin-top: 8px;
+  padding-bottom: 4px;
+  border: 1px dashed transparent;
+  border-radius: 6px;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.ph-ungrouped-zone.drop-active {
+  border-color: var(--ph-accent);
+  background: var(--ph-hover-bg);
+}
+
+.ph-ungrouped-empty {
+  padding: 6px 12px;
+  font-size: 12px;
+  color: var(--ph-sidebar-meta);
+  text-align: center;
+}
+
 /* 顶层无文件夹项保持原样 */
 .ph-entry-item.root-level {
   padding-left: 8px;

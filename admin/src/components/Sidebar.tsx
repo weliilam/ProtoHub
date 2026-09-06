@@ -227,6 +227,14 @@ function PrototypeInfoView({ info }: { info: PrototypeInfo }) {
 }
 
 // ── 分组面板 ──
+
+/**
+ * 当前正在拖拽的原型。
+ * HTML5 拖放规范限制：dragover 阶段读不到 dataTransfer 的数据（只能读 types），
+ * 因此「拖来的原型属于哪个分组」必须靠模块级状态判断，否则无法在悬停时给高亮反馈。
+ */
+let draggingProto: { name: string; groupId?: string } | null = null;
+
 function GroupPanel(props: {
   group: GroupConfig;
   items: EntryItem[];
@@ -238,6 +246,8 @@ function GroupPanel(props: {
   onRenameGroup: (id: string, name: string) => Promise<void>;
   onDeleteGroup: (id: string) => Promise<void>;
   onReorder?: (groupId: string, protoNames: string[]) => void;
+  /** 有外部原型落入本分组时调用（分组内排序仍走 onReorder） */
+  onDropIntoGroup?: (protoName: string, groupId: string) => void;
   allGroups: GroupConfig[];
   isOpen: boolean;
   onToggle: () => void;
@@ -248,6 +258,8 @@ function GroupPanel(props: {
 }) {
   const { group, items, selected, allGroups } = props;
   const [dropIndex, setDropIndex] = useState<number | null>(null);
+  /** 分组头 / 空分组提示是否处于「可放入」高亮态 */
+  const [dropActive, setDropActive] = useState(false);
 
   const handleRenameGroup = () => {
     let value = group.name;
@@ -275,10 +287,12 @@ function GroupPanel(props: {
     });
   };
 
-  // ── 拖拽排序 ──
+  // ── 拖拽排序 / 跨分组拖入 ──
   const handleDragStart = (e: React.DragEvent, idx: number) => {
     e.dataTransfer.setData('text/plain', items[idx].name);
     e.dataTransfer.effectAllowed = 'move';
+    // dragover 阶段读不到 dataTransfer，用模块级状态供其它分组判断来源
+    draggingProto = { name: items[idx].name, groupId: group.id };
     (e.currentTarget as HTMLElement).style.opacity = '0.4';
   };
 
@@ -291,23 +305,56 @@ function GroupPanel(props: {
   const handleDragEnd = (e: React.DragEvent) => {
     (e.currentTarget as HTMLElement).style.opacity = '1';
     setDropIndex(null);
+    setDropActive(false);
+    draggingProto = null;
   };
 
   const handleDrop = (e: React.DragEvent, toIdx: number) => {
     e.preventDefault();
     setDropIndex(null);
+    setDropActive(false);
     const fromName = e.dataTransfer.getData('text/plain');
     const fromIdx = items.findIndex((i) => i.name === fromName);
-    if (fromIdx === -1 || fromIdx === toIdx || fromIdx + 1 === toIdx) return;
+    // 来自分组外（未分组 / 其它分组）：走「移入本分组」，而不是组内排序
+    if (fromIdx === -1) {
+      if (fromName) props.onDropIntoGroup?.(fromName, group.id);
+      draggingProto = null;
+      return;
+    }
+    if (fromIdx === toIdx || fromIdx + 1 === toIdx) return;
     const newOrder = [...items];
     const [moved] = newOrder.splice(fromIdx, 1);
     newOrder.splice(fromIdx < toIdx ? toIdx - 1 : toIdx, 0, moved);
     props.onReorder?.(group.id, newOrder.map((i) => i.name));
   };
 
+  /** 分组头 / 空分组提示作为放置目标：把外部原型移入本分组 */
+  const canAcceptExternal = () => !!draggingProto && draggingProto.groupId !== group.id;
+
+  const handleHeaderDragOver = (e: React.DragEvent) => {
+    if (!canAcceptExternal()) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    setDropActive(true);
+  };
+
+  const handleHeaderDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setDropActive(false);
+    const name = e.dataTransfer.getData('text/plain') || draggingProto?.name;
+    if (name && canAcceptExternal()) props.onDropIntoGroup?.(name, group.id);
+    draggingProto = null;
+  };
+
   return (
     <div className="ph-folder-group">
-      <div className="ph-folder-header" onClick={props.onToggle}>
+      <div
+        className={`ph-folder-header${dropActive ? ' drop-target' : ''}`}
+        onClick={props.onToggle}
+        onDragOver={handleHeaderDragOver}
+        onDragLeave={() => setDropActive(false)}
+        onDrop={handleHeaderDrop}
+      >
         <RightOutlined className={`ph-folder-icon${props.isOpen ? ' open' : ''}`} />
         {props.isOpen ? <FolderOpenOutlined style={{ color: 'var(--ph-sidebar-folder-open)' }} /> : <FolderOutlined style={{ color: 'var(--ph-sidebar-folder-closed)' }} />}
         <span className="ph-folder-title">{group.name}</span>
@@ -349,8 +396,13 @@ function GroupPanel(props: {
       {props.isOpen && (
         <div className="ph-folder-body">
           {items.length === 0 ? (
-            <div style={{ padding: '8px 12px', fontSize: 12, color: 'var(--ph-sidebar-meta)', textAlign: 'center' }}>
-              暂无原型，可将原型移入此分组
+            <div
+              className={`ph-folder-empty${dropActive ? ' drop-active' : ''}`}
+              onDragOver={handleHeaderDragOver}
+              onDragLeave={() => setDropActive(false)}
+              onDrop={handleHeaderDrop}
+            >
+              暂无原型，把原型拖到这里即可加入本分组
             </div>
           ) : (
             items.map((item, idx) => (
@@ -397,6 +449,8 @@ export default function Sidebar(props: SidebarProps) {
   const [debouncedKeyword, setDebouncedKeyword] = useState('');
   const debounceRef = useRef<ReturnType<typeof setTimeout>>();
   const [groups, setGroups] = useState<GroupConfig[]>([]);
+  /** 未分组区域是否处于「可移入」高亮态（把分组内的原型拖出来时） */
+  const [ugDropActive, setUgDropActive] = useState(false);
   const [openFolders, setOpenFoldersRaw] = useState<Set<string>>(() => {
     try {
       const raw = localStorage.getItem('ph_open_folders');
@@ -508,6 +562,14 @@ export default function Sidebar(props: SidebarProps) {
     } catch (e: any) {
       message.error(e.message || '操作失败');
     }
+  };
+
+  /** 拖拽落入分组：分组处于折叠状态时自动展开，避免「拖完看不到原型去哪了」 */
+  const handleDropIntoGroup = async (prototype: string, groupId: string) => {
+    if (!openFolders.has(groupId)) {
+      setOpenFolders((prev) => new Set(prev).add(groupId));
+    }
+    await handleMoveGroup(prototype, groupId);
   };
 
   // 分组（文件夹）整体上移/下移
@@ -851,6 +913,7 @@ export default function Sidebar(props: SidebarProps) {
             onRenameGroup={handleRenameGroup}
             onDeleteGroup={handleDeleteGroup}
             onReorder={handleReorder}
+            onDropIntoGroup={handleDropIntoGroup}
             allGroups={groups}
             index={idx}
             total={orderedGroups.length}
@@ -865,23 +928,67 @@ export default function Sidebar(props: SidebarProps) {
             }
           />
         ))}
-        {ungrouped.length > 0 && (
-          <div style={{ padding: '4px 8px', fontSize: 11, color: 'var(--ph-sidebar-desc)', marginTop: 8, fontWeight: 600 }}>
+        {/* 未分组：既是拖拽起点，也是「移出分组」的放置目标 */}
+        <div
+          className={`ph-ungrouped-zone${ugDropActive ? ' drop-active' : ''}`}
+          onDragOver={(e) => {
+            // 只有分组内的原型拖过来才有意义（移出分组）
+            if (!draggingProto?.groupId) return;
+            e.preventDefault();
+            e.dataTransfer.dropEffect = 'move';
+            setUgDropActive(true);
+          }}
+          onDragLeave={() => setUgDropActive(false)}
+          onDrop={(e) => {
+            e.preventDefault();
+            setUgDropActive(false);
+            const name = e.dataTransfer.getData('text/plain') || draggingProto?.name;
+            if (name && draggingProto?.groupId) handleMoveGroup(name, undefined);
+            draggingProto = null;
+          }}
+        >
+          <div
+            style={{
+              padding: '4px 8px',
+              fontSize: 11,
+              color: 'var(--ph-sidebar-desc)',
+              fontWeight: 600,
+            }}
+          >
             未分组 ({ungrouped.length})
           </div>
-        )}
-        {ungrouped.map((item) => (
-          <EntryRow
-            key={`ug-${item.name}`}
-            item={item}
-            active={selected?.type === item.type && selected?.name === item.name}
-            onSelect={() => props.onSelect(item)}
-            onRename={(newName) => props.onRename(item, newName)}
-            onDelete={() => props.onDelete(item)}
-            groups={groups}
-            onMoveGroup={handleMoveGroup}
-          />
-        ))}
+          {ungrouped.map((item) => (
+            <div
+              key={`ug-${item.name}`}
+              draggable
+              className="ph-drag-item"
+              onDragStart={(e) => {
+                e.dataTransfer.setData('text/plain', item.name);
+                e.dataTransfer.effectAllowed = 'move';
+                draggingProto = { name: item.name, groupId: undefined };
+                (e.currentTarget as HTMLElement).style.opacity = '0.4';
+              }}
+              onDragEnd={(e) => {
+                (e.currentTarget as HTMLElement).style.opacity = '1';
+                draggingProto = null;
+                setUgDropActive(false);
+              }}
+            >
+              <EntryRow
+                item={item}
+                active={selected?.type === item.type && selected?.name === item.name}
+                onSelect={() => props.onSelect(item)}
+                onRename={(newName) => props.onRename(item, newName)}
+                onDelete={() => props.onDelete(item)}
+                groups={groups}
+                onMoveGroup={handleMoveGroup}
+              />
+            </div>
+          ))}
+          {ungrouped.length === 0 && (
+            <div className="ph-ungrouped-empty">把分组内的原型拖到这里即可移出</div>
+          )}
+        </div>
       </>
     );
   };
