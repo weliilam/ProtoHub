@@ -19,14 +19,15 @@ import {
   SkinOutlined,
   UngroupOutlined,
 } from '@ant-design/icons';
-import type { EntryItem, EntryType, GroupConfig, PrdDoc, PrototypeInfo } from '../types';
+import type { CreateEntryOptions, EntryItem, EntryType, GroupConfig, PrdDoc, PrototypeInfo } from '../types';
 import { api } from '../api';
+import CreatePrototypeModal from './CreatePrototypeModal';
 
 interface SidebarProps {
   entries: EntryItem[];
   selected: EntryItem | null;
   onSelect: (item: EntryItem) => void;
-  onCreate: (type: EntryType, name: string, title: string) => Promise<void>;
+  onCreate: (type: EntryType, name: string, title: string, options?: CreateEntryOptions) => Promise<void>;
   onRename: (item: EntryItem, newName: string) => Promise<void>;
   onDelete: (item: EntryItem) => Promise<void>;
   onRefresh: () => void;
@@ -443,7 +444,7 @@ function GroupPanel(props: {
 
 // ── 主 Sidebar ──
 export default function Sidebar(props: SidebarProps) {
-  const { entries, selected } = props;
+  const { entries, selected, onSelect } = props;
   const [tab, setTab] = useState('prototype');
   const [keyword, setKeyword] = useState('');
   const [debouncedKeyword, setDebouncedKeyword] = useState('');
@@ -460,7 +461,19 @@ export default function Sidebar(props: SidebarProps) {
     }
   });
   const hadSavedState = useRef(localStorage.getItem('ph_open_folders') !== null);
-  const createNameRef = useRef<Input>(null);
+  /** 新建原型弹框（模板创建 / AI 上传设计稿生成） */
+  const [createOpen, setCreateOpen] = useState(false);
+  /** 创建完成后待自动选中的原型目录名：等列表刷新出该条目再选中 */
+  const [pendingProto, setPendingProto] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!pendingProto) return;
+    const found = entries.find((e) => e.type === 'prototype' && e.name === pendingProto);
+    if (found) {
+      onSelect(found);
+      setPendingProto(null);
+    }
+  }, [entries, pendingProto, onSelect]);
 
   // 搜索关键词 150ms 防抖
   const handleKeywordChange = (val: string) => {
@@ -816,54 +829,24 @@ export default function Sidebar(props: SidebarProps) {
   };
 
   const handleCreate = (type: EntryType) => {
+    // 原型：走带 AI 助手的新建弹框（模板创建 / 上传设计稿由 AI 生成，由用户自行选择）
+    if (type === 'prototype') {
+      setCreateOpen(true);
+      return;
+    }
     let name = '';
     let title = '';
-    // 由标题自动生成 kebab-case 目录名（仅保留英文/数字，中文标题走时间戳兜底，避免中文目录 404）
-    const autoDirName = (t: string) => {
-      const base = t
-        .toLowerCase()
-        .replace(/[^a-z0-9]+/g, '-')
-        .replace(/^-+|-+$/g, '')
-        .slice(0, 50);
-      return base || `proto-${Date.now().toString(36)}`;
-    };
-    // 标题失焦时，若目录名尚未填写则自动填入
-    const applyAutoName = () => {
-      if (type !== 'prototype') return;
-      const el = createNameRef.current?.input as HTMLInputElement | undefined;
-      if (el && !el.value.trim() && title.trim()) {
-        const n = autoDirName(title);
-        el.value = n;
-        name = n;
-      }
-    };
     Modal.confirm({
-      title: `新建${type === 'prototype' ? '原型' : type === 'doc' ? '文档' : '数据表'}`,
+      title: `新建${type === 'doc' ? '文档' : '数据表'}`,
       content: (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 8 }}>
-          <Input
-            placeholder="显示标题（如 B2B 订单列表）"
-            onChange={(e) => (title = e.target.value)}
-            onBlur={applyAutoName}
-          />
-          {type === 'prototype' ? (
-            <Input
-              ref={createNameRef}
-              placeholder="目录名（根据标题自动生成，可修改）"
-              onChange={(e) => (name = e.target.value)}
-            />
-          ) : (
-            <Input placeholder="目录名（英文/中划线，如 order-list）" onChange={(e) => (name = e.target.value)} />
-          )}
+          <Input placeholder="显示标题（如 接口说明）" onChange={(e) => (title = e.target.value)} />
+          <Input placeholder="目录名（英文/中划线，如 order-list）" onChange={(e) => (name = e.target.value)} />
         </div>
       ),
       okText: '创建',
       cancelText: '取消',
       onOk: async () => {
-        // 直接点创建未触发失焦时，兜底自动生成
-        if (type === 'prototype' && !name.trim() && title.trim()) {
-          name = autoDirName(title);
-        }
         if (!name.trim()) {
           message.warning('请输入目录名');
           return Promise.reject();
@@ -1130,6 +1113,14 @@ export default function Sidebar(props: SidebarProps) {
           </div>
         </div>
       </Modal>
+
+      {/* 新建原型：模板创建 / 上传设计稿由 AI 生成（用户可自行选择，未装 CLI 时仍可模板创建） */}
+      <CreatePrototypeModal
+        open={createOpen}
+        onCancel={() => setCreateOpen(false)}
+        onCreate={(name, title, options) => props.onCreate('prototype', name, title, options)}
+        onCreated={(name) => setPendingProto(name)}
+      />
     </div>
   );
 }

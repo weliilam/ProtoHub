@@ -1,0 +1,28 @@
+sequenceDiagram
+    autonumber
+
+    participant 业务申请人
+    participant OA as OA审批系统
+    participant CRM as CRM客户管理
+    participant OMS as OMS订单系统
+
+    rect rgb(230, 245, 255)
+    Note over 业务申请人, OMS: 场景1：费用项减免申请
+    业务申请人 ->> OA: 提交费用项减免申请
+    OA ->> OA: 审批流程
+    OA -->> 业务申请人: 审批结果通知
+    OA ->> CRM: 审批通过 → 记录客户附加费减免备注
+    CRM ->> CRM: 保存附加费减免备注
+    CRM ->> OMS: 同步附加费减免备注
+    OMS ->> OMS: 存储减免备注数据
+    Note over OMS: 下单时应用减免备注，在订单上展示
+    end
+
+    rect rgb(255, 245, 230)
+    Note over 业务申请人, OMS: 场景2：销售维护客户备注
+    业务申请人 ->> CRM: 销售维护客户备注
+    CRM ->> CRM: 保存客户备注
+    CRM ->> OMS: 同步客户备注
+    OMS ->> OMS: 存储客户备注数据
+    Note over OMS: 下单时应用客户备注，在订单上展示
+    end

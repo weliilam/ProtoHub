@@ -203,6 +203,79 @@ export default function App() {
 }
 `;
 
+/** 标题会被内联进模板字符串，去掉引号/反斜杠避免破坏模板语法 */
+const safeTitle = (t: string) => t.replace(/["'`\\]/g, '');
+
+const VUE_STYLE = `/* 原型自定义样式：类名建议统一加 proto- 前缀，避免影响其它原型 */
+.proto-page {
+  padding: 24px;
+}
+`;
+
+/** Vue 原型骨架：按所选组件库产出对应写法（ant-design-vue / element-plus 均为内置依赖） */
+const VUE_TEMPLATE = (title: string, lib: 'ant-design-vue' | 'element-plus') => {
+  const name = safeTitle(title);
+  if (lib === 'element-plus') {
+    return `<script setup>
+import { ref } from 'vue';
+
+const count = ref(0);
+const rows = [
+  { key: 1, id: 'YT0001', name: '示例数据', status: '已审核' },
+  { key: 2, id: 'YT0002', name: '示例数据', status: '已审核' },
+];
+</script>
+
+<template>
+  <div class="proto-page">
+    <el-card header="${name}">
+      <el-space direction="vertical" size="large" style="width: 100%">
+        <el-space>
+          <el-button type="primary" @click="count++">点击计数</el-button>
+          <el-tag type="primary">{{ count }}</el-tag>
+        </el-space>
+        <el-table :data="rows" size="small" style="width: 100%">
+          <el-table-column prop="id" label="单号" />
+          <el-table-column prop="name" label="名称" />
+          <el-table-column prop="status" label="状态" />
+        </el-table>
+      </el-space>
+    </el-card>
+  </div>
+</template>
+`;
+  }
+  return `<script setup>
+import { ref } from 'vue';
+
+const count = ref(0);
+const columns = [
+  { title: '单号', dataIndex: 'id' },
+  { title: '名称', dataIndex: 'name' },
+  { title: '状态', dataIndex: 'status' },
+];
+const rows = [
+  { key: 1, id: 'YT0001', name: '示例数据', status: '已审核' },
+  { key: 2, id: 'YT0002', name: '示例数据', status: '已审核' },
+];
+</script>
+
+<template>
+  <div class="proto-page">
+    <a-card title="${name}">
+      <a-space direction="vertical" size="middle" style="width: 100%">
+        <a-space>
+          <a-button type="primary" @click="count++">点击计数</a-button>
+          <a-tag color="blue">{{ count }}</a-tag>
+        </a-space>
+        <a-table size="small" :pagination="false" :columns="columns" :data-source="rows" row-key="key" />
+      </a-space>
+    </a-card>
+  </div>
+</template>
+`;
+};
+
 function typeDir(type: string): string | null {
   if (type === 'prototype') return path.join(projectRoot, 'src/prototypes');
   if (type === 'component') return path.join(projectRoot, 'src/components');
@@ -322,7 +395,15 @@ export function entriesApiPlugin(): Plugin {
           }
 
           if (pathname === '/api/entries' && req.method === 'POST') {
-            const body = await readJsonBody<{ type?: string; name?: string; title?: string }>(req);
+            const body = await readJsonBody<{
+              type?: string;
+              name?: string;
+              title?: string;
+              /** 技术栈：vue = Vue 3（入口 index.vue）；缺省 react */
+              engine?: string;
+              /** 组件库：vue 取 ant-design-vue / element-plus；react 取 client（WinForms 客户端主题） */
+              ui?: string;
+            }>(req);
             const dir = body.type ? typeDir(body.type) : null;
             if (!dir) return sendError(res, '仅支持新建 prototype / component');
             if (!body.name || !isValidName(body.name)) return sendError(res, '名称不合法（字母/数字/中文/中划线/下划线）');
@@ -330,7 +411,30 @@ export function entriesApiPlugin(): Plugin {
             if (fs.existsSync(target)) return sendError(res, '已存在同名条目');
             fs.mkdirSync(target, { recursive: true });
             const title = body.title?.trim() || body.name;
-            fs.writeFileSync(path.join(target, 'index.tsx'), PROTOTYPE_TEMPLATE(title), 'utf8');
+            // 组件（非原型）沿用 React 骨架
+            const engine = body.type === 'prototype' && body.engine === 'vue' ? 'vue' : 'react';
+            const ui = (body.ui || '').trim();
+            if (engine === 'vue') {
+              // Vue 入口必须配 proto.config.json，否则预览仍按 React 引擎找 index.tsx（表现为"新建后看不到改动"）
+              const lib = ui === 'element-plus' ? 'element-plus' : 'ant-design-vue';
+              fs.writeFileSync(path.join(target, 'index.vue'), VUE_TEMPLATE(title, lib), 'utf8');
+              fs.writeFileSync(path.join(target, 'style.css'), VUE_STYLE, 'utf8');
+              fs.writeFileSync(
+                path.join(target, 'proto.config.json'),
+                JSON.stringify({ title, engine: 'vue', ui: lib }, null, 2) + '\n',
+                'utf8',
+              );
+            } else {
+              fs.writeFileSync(path.join(target, 'index.tsx'), PROTOTYPE_TEMPLATE(title), 'utf8');
+              if (ui === 'client') {
+                // 客户端（WinForms）风格：声明 ui=client，框架自动注入 .client-theme 与 ClientShell
+                fs.writeFileSync(
+                  path.join(target, 'proto.config.json'),
+                  JSON.stringify({ title, ui: 'client' }, null, 2) + '\n',
+                  'utf8',
+                );
+              }
+            }
             fs.writeFileSync(path.join(target, 'spec.md'), `# ${title}\n\n## 功能概述\n\n（在此描述原型的目标与功能）\n`, 'utf8');
             invalidateEntriesCache();
             sendJson(res, { success: true });

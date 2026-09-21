@@ -89,11 +89,20 @@ export interface CliStatus {
 export interface AiModelOption {
   id: string;
   label: string;
+  /** true = 多模态（支持图片输入）。非多模态模型必须禁用图片粘贴/上传 */
+  vision: boolean;
 }
 
 export interface AiStatus {
   clis: Record<string, CliStatus>;
   models: AiModelOption[];
+}
+
+/** 新建原型时的技术栈：engine 决定入口文件（vue → index.vue），ui 决定组件库/主题 */
+export interface CreateEntryOptions {
+  engine?: 'react' | 'vue';
+  /** vue：ant-design-vue / element-plus；react：client（WinForms 客户端主题） */
+  ui?: string;
 }
 
 /** 原型基本信息：由 /api/prototype/info 返回 */

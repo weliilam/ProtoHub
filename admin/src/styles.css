@@ -1180,6 +1180,102 @@ body {
   min-width: 40px;
 }
 
+/* 图片按钮：与发送按钮等高。Tooltip 需 span 包裹，否则禁用状态下不触发 */
+.ph-ai-input-area .ph-ai-attach-wrap {
+  display: flex;
+  align-items: stretch;
+}
+
+.ph-ai-input-area .ph-ai-attach-btn {
+  height: auto;
+  min-width: 36px;
+}
+
+/* 待发送图片附件区（粘贴 / 拖拽 / 选择） */
+.ph-ai-attach {
+  margin-bottom: 8px;
+}
+
+.ph-ai-attach-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.ph-ai-attach-item {
+  position: relative;
+  width: 56px;
+  height: 56px;
+  border: 1px solid var(--ph-border);
+  border-radius: 6px;
+  overflow: hidden;
+  background: var(--ph-hover-bg);
+}
+
+.ph-ai-attach-item img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.ph-ai-attach-del {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  width: 16px;
+  height: 16px;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: 50%;
+  font-size: 9px;
+  cursor: pointer;
+  color: #fff;
+  background: rgba(0, 0, 0, 0.55);
+}
+
+.ph-ai-attach-del:hover:not(:disabled) {
+  background: rgba(0, 0, 0, 0.78);
+}
+
+.ph-ai-attach-del:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.ph-ai-attach-hint {
+  margin-top: 6px;
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--ph-text-tertiary);
+}
+
+/* 模型不支持图片时的拦截提示 */
+.ph-ai-attach-hint.blocked {
+  padding: 4px 8px;
+  border: 1px solid var(--ph-anno-warn-border);
+  border-radius: 4px;
+  background: var(--ph-anno-warn-bg);
+  color: var(--ph-anno-warn-color);
+}
+
+/* 用户消息里的图片数量标记 */
+.ph-ai-msg-imgs {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 0 6px;
+  border-radius: 999px;
+  font-size: 11px;
+}
+
+.ph-ai-msg.user .ph-ai-msg-imgs {
+  background: rgba(255, 255, 255, 0.22);
+  color: #ffffff;
+}
+
 .ph-ai-quick-actions {
   display: flex;
   gap: 6px;
@@ -1209,6 +1305,60 @@ body {
   border-color: var(--ph-accent);
   color: var(--ph-accent);
   background: var(--ph-gradient-soft);
+}
+
+/* 新建原型弹框（模板创建 / 上传设计稿由 AI 生成） */
+.ph-create-body {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin-top: 4px;
+}
+
+.ph-create-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.ph-create-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ph-text-secondary);
+}
+
+.ph-create-tip {
+  font-size: 11px;
+  line-height: 1.6;
+  color: var(--ph-text-tertiary);
+}
+
+.ph-create-drop {
+  padding: 10px;
+  border: 1px dashed var(--ph-border);
+  border-radius: 8px;
+  background: var(--ph-gradient-soft);
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+.ph-create-drop.active {
+  border-color: var(--ph-accent);
+  background: var(--ph-hover-bg);
+}
+
+.ph-create-output {
+  max-height: 240px;
+  overflow: auto;
+  padding: 10px 12px;
+  border: 1px solid var(--ph-border-light);
+  border-radius: 8px;
+  background: var(--ph-code-bg);
+  color: var(--ph-code-color);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 12px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  word-break: break-word;
 }
 
 /* AI CLI 引导面板（未安装 / 需授权时显示） */

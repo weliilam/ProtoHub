@@ -1,0 +1,25 @@
+sequenceDiagram
+    participant POMS as POMS 平台订单管理
+    participant BOMS as OMS-B2B 订单系统
+    participant OFP as OFP 订单履约平台
+    participant CCOS as CCOS 集货作业
+    participant OPS as 海外OPS
+
+    POMS->>BOMS: 波次下单
+    BOMS->>BOMS: 创建订单
+    BOMS->>OFP: 下单
+    OFP->>CCOS: 下单
+    CCOS->>CCOS: 签入
+    CCOS->>OFP: 同步签入状态
+    OFP->>BOMS: 同步签入状态
+    BOMS->>POMS: 同步签入状态
+    CCOS->>CCOS: 签出
+    CCOS->>OFP: 同步签出状态
+    OFP->>BOMS: 同步签出状态
+    BOMS->>POMS: 同步签出状态
+    POMS->>BOMS: 查询波次对应的合包订单数据
+    BOMS-->>POMS: 返回数据
+    OFP->>OPS: 上报签入数据
+    POMS->>BOMS: 查询波次对应的合包订单签入所需数据
+    BOMS-->>POMS: 返回数据
+    OFP->>OPS: 上报签出数据

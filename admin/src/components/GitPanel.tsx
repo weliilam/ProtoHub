@@ -381,6 +381,9 @@ ${diffObj.diff.slice(0, 8000)}`;
                 保存
               </Button>
             </Space.Compact>
+            <div style={{ fontSize: 11, color: 'var(--ph-text-tertiary)', marginTop: -8, marginBottom: 12 }}>
+              快照保存在本机（refs/hatch-backups），不进主分支、不会被 git push 推到远程，回滚能力不受影响
+            </div>
             {/* 对比按钮 */}
             {compareSelected.length > 0 && (
               <div style={{ marginBottom: 12 }}>

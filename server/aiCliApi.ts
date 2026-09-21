@@ -1,10 +1,10 @@
 import type { Plugin } from 'vite';
 import { spawn, execFile, ChildProcess } from 'child_process';
 import { promisify } from 'util';
-import { existsSync } from 'fs';
+import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, unlinkSync, writeFileSync } from 'fs';
 import { homedir } from 'os';
-import { join } from 'path';
-import { sendJson, sendError, readJsonBody, getPathname } from './utils';
+import { basename, join } from 'path';
+import { safeResolve, sendJson, sendError, readJsonBody, getPathname } from './utils';
 
 const execFileAsync = promisify(execFile);
 
@@ -19,26 +19,198 @@ const CLI_DEFS: Record<string, { bin: string[]; args: string[]; label: string }>
   opencode: { bin: ['opencode'], args: ['run'], label: 'OpenCode' },
 };
 
-/** CodeBuddy CLI 支持的模型（来自 `codebuddy --help` 的 --model 候选，仅对 codebuddy 生效） */
-export const SUPPORTED_MODELS: { id: string; label: string }[] = [
-  { id: 'deepseek-v4-pro', label: 'DeepSeek V4 Pro' },
-  { id: 'deepseek-v4-flash', label: 'DeepSeek V4 Flash' },
-  { id: 'kimi-k3-2', label: 'Kimi K3.2' },
-  { id: 'kimi-k2.7', label: 'Kimi K2.7' },
-  { id: 'kimi-k2.6', label: 'Kimi K2.6' },
-  { id: 'glm-5.2', label: 'GLM 5.2' },
-  { id: 'glm-5.1', label: 'GLM 5.1' },
-  { id: 'glm-5v-turbo', label: 'GLM 5V Turbo' },
-  { id: 'minimax-m3-pay', label: 'MiniMax M3' },
-  { id: 'minimax-m2.7', label: 'MiniMax M2.7' },
-  { id: 'hy3', label: 'Hy3' },
-  { id: 'custom-local:kimi-k2.5', label: '本地 Kimi K2.5' },
-  { id: 'custom-local:GPT5.4', label: '本地 GPT 5.4' },
-  { id: 'custom-local:K2.7 Code', label: '本地 K2.7 Code' },
-  { id: 'custom-local:deepseek-v4-pro', label: '本地 DeepSeek V4 Pro' },
-  { id: 'custom-local:deepseek-v4-flash', label: '本地 DeepSeek V4 Flash' },
-  { id: 'custom-local:kimi-k2.6', label: '本地 Kimi K2.6' },
+/** 模型是否支持图片输入（多模态）。前端据此决定是否允许粘贴/上传图片 */
+export interface AiModelDef {
+  id: string;
+  label: string;
+  /** true = 多模态，可理解图片；false = 纯文本模型，图片对它不可见 */
+  vision: boolean;
+}
+
+/** 自定义（本地）模型在 --model 候选里的前缀，CodeBuddy CLI 约定 */
+const LOCAL_MODEL_PREFIX = 'custom-local:';
+
+/** 本地自定义模型配置：取自 ~/.codebuddy/models.json 的 models[] */
+interface LocalModelCfg {
+  id: string;
+  name?: string;
+  /** 关键能力位：本地模型是否支持图片输入，由模型配置直供，不再靠猜 */
+  supportsImages?: boolean;
+}
+
+/** 内置模型的显示名（CLI 帮助文本只有 id，这里补可读标题，未命中则直接用 id） */
+const BUILTIN_LABELS: Record<string, string> = {
+  'hy4-preview': 'Hy4 Preview',
+  hy3: 'Hy3',
+  'hy3-x': 'Hy3 X',
+  'deepseek-v4-pro': 'DeepSeek V4 Pro',
+  'deepseek-v4.1-flash': 'DeepSeek V4.1 Flash',
+  'kimi-k3-2': 'Kimi K3.2',
+  'kimi-k2.8-preview': 'Kimi K2.8 Preview',
+  'kimi-k2.7': 'Kimi K2.7',
+  'kimi-k2.6': 'Kimi K2.6',
+  'glm-5.3': 'GLM 5.3',
+  'glm-5.3-flash': 'GLM 5.3 Flash',
+  'glm-5.3-flashx': 'GLM 5.3 FlashX',
+  'glm-5.2': 'GLM 5.2',
+  'glm-5.1': 'GLM 5.1',
+  'glm-5v-turbo': 'GLM 5V Turbo',
+  'minimax-m3-pay': 'MiniMax M3',
+  'minimax-m2.7': 'MiniMax M2.7',
+};
+
+/** 本地模型名里的常见厂商词，按品牌大小写还原 */
+const MODEL_NAME_WORDS: Record<string, string> = {
+  deepseek: 'DeepSeek',
+  kimi: 'Kimi',
+  qwen: 'Qwen',
+  glm: 'GLM',
+  gpt: 'GPT',
+  minimax: 'MiniMax',
+};
+
+/** 本地模型 id 转可读标题：deepseek-v4-flash → DeepSeek V4 Flash（版本号 3.7 / 5.4 原样保留） */
+function prettyModelName(raw: string): string {
+  return raw
+    .split(/[-_\s]+/)
+    .filter(Boolean)
+    .map((w) =>
+      w
+        .split('.')
+        .map((seg) => {
+          // 纯数字段是版本号（如 3.7），保持原样
+          if (!/^[a-z]/.test(seg)) return seg;
+          const matched = /^([a-z]+)(.*)$/.exec(seg);
+          if (!matched) return seg;
+          const head = MODEL_NAME_WORDS[matched[1]] || matched[1].charAt(0).toUpperCase() + matched[1].slice(1);
+          return head + matched[2];
+        })
+        .join('.'),
+    )
+    .join(' ');
+}
+
+/** 名称特征兜底：CLI 内置模型帮助文本不含能力位，按命名推断是否多模态 */
+const VISION_NAME_RE = /vision|v[-_]?turbo|(^|[-:_])[45]v([-:_]|$)|[-_:]vl([-_:]|$)/i;
+
+/** 读不到 CLI 候选列表时的兜底清单，保证面板仍然可用 */
+const FALLBACK_MODELS: AiModelDef[] = [
+  { id: 'deepseek-v4-pro', label: 'DeepSeek V4 Pro', vision: false },
+  { id: 'kimi-k2.7', label: 'Kimi K2.7', vision: false },
+  { id: 'kimi-k2.6', label: 'Kimi K2.6', vision: false },
+  { id: 'glm-5.2', label: 'GLM 5.2', vision: false },
+  { id: 'glm-5v-turbo', label: 'GLM 5V Turbo', vision: true },
+  { id: 'minimax-m2.7', label: 'MiniMax M2.7', vision: false },
+  { id: 'hy3', label: 'Hy3', vision: false },
 ];
+
+/** 读取本地自定义模型配置（~/.codebuddy/models.json），文件缺失/损坏时返回空数组 */
+function readLocalModels(): LocalModelCfg[] {
+  const file = join(homedir(), '.codebuddy', 'models.json');
+  if (!existsSync(file)) return [];
+  try {
+    const parsed = JSON.parse(readFileSync(file, 'utf8')) as { models?: LocalModelCfg[] };
+    return Array.isArray(parsed.models) ? parsed.models.filter((m) => !!m?.id) : [];
+  } catch {
+    return [];
+  }
+}
+
+/** `codebuddy --help` 输出的候选模型 id 清单（解析结果进程内缓存，避免每次请求都起进程） */
+let helpModels: { at: number; ids: string[] } | null = null;
+const HELP_MODELS_TTL = 5 * 60 * 1000;
+
+async function listCliModelIds(): Promise<string[]> {
+  if (helpModels && Date.now() - helpModels.at < HELP_MODELS_TTL) return helpModels.ids;
+  let ids: string[] = [];
+  try {
+    // Windows 上 codebuddy 实际是 codebuddy.cmd，execFile 不能直接拉起 .cmd，
+    // 这里显式用 cmd.exe /c 执行（不开 shell:true，避免参数拼接带来的风险）
+    const win = process.platform === 'win32';
+    const { stdout } = await execFileAsync(win ? 'cmd.exe' : 'codebuddy', win ? ['/c', 'codebuddy', '--help'] : ['--help'], {
+      timeout: 20_000,
+      maxBuffer: 4 * 1024 * 1024,
+    });
+    // 形如：Currently supported: (hy4-preview, hy3, ..., custom-local:deepseek-flash, ...)
+    const matched = /Currently supported:\s*\(([^)]*)\)/.exec(stdout || '');
+    if (matched) {
+      ids = matched[1]
+        .split(',')
+        .map((s) => s.trim())
+        .filter(Boolean);
+    }
+  } catch {
+    /* CLI 未安装或执行失败：退回兜底清单 */
+  }
+  if (ids.length) helpModels = { at: Date.now(), ids };
+  return ids;
+}
+
+/**
+ * 当前可选的模型清单。
+ * 每次都按「CLI --help 的 --model 候选」动态生成——本地 models.json 里新增/改名/删除模型后，
+ * 面板上的可选模型会自动跟随，不会再出现"本地明明有 deepseek-flash 多模态却选不到"的情况。
+ * 多模态判定：custom-local:* 直接读 models.json 的 supportsImages；内置模型按名称特征推断。
+ */
+export async function getSupportedModels(): Promise<AiModelDef[]> {
+  const ids = await listCliModelIds();
+  if (!ids.length) return FALLBACK_MODELS;
+  const localMap = new Map(readLocalModels().map((m) => [m.id, m]));
+  return ids.map((id) => {
+    if (id.startsWith(LOCAL_MODEL_PREFIX)) {
+      const key = id.slice(LOCAL_MODEL_PREFIX.length);
+      const cfg = localMap.get(key);
+      // 用户在 models.json 里写了自定义 name 就用它，否则把 id 美化成人读得懂的标题
+      const name = cfg?.name && cfg.name !== key ? cfg.name : prettyModelName(key);
+      return { id, label: `本地 ${name}`, vision: !!cfg?.supportsImages };
+    }
+    return { id, label: BUILTIN_LABELS[id] || id, vision: VISION_NAME_RE.test(id) };
+  });
+}
+
+/** 判定模型是否支持图片输入：本地模型查 models.json，其余按名称特征兜底 */
+export function isVisionModel(id: string): boolean {
+  if (!id) return false;
+  if (id.startsWith(LOCAL_MODEL_PREFIX)) {
+    const key = id.slice(LOCAL_MODEL_PREFIX.length);
+    const cfg = readLocalModels().find((m) => m.id === key);
+    return !!cfg?.supportsImages;
+  }
+  return VISION_NAME_RE.test(id);
+}
+
+/** 图片上传：仅接受这几种格式，扩展名由 MIME 决定，不采信前端文件名 */
+const IMAGE_MIME_EXT: Record<string, string> = {
+  'image/png': 'png',
+  'image/jpeg': 'jpg',
+  'image/gif': 'gif',
+  'image/webp': 'webp',
+};
+/** 单张图片体积上限 */
+const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
+/** 图片落盘目录（相对项目根）：AI CLI 以项目根为 cwd，可用相对路径直接读取 */
+const IMAGE_DIR_REL = '.codebuddy/tmp/ai-images';
+/** 旧图片保留时长，超过即清理，避免临时目录无限增长 */
+const IMAGE_TTL_MS = 24 * 60 * 60 * 1000;
+
+/** 清理过期图片（上传时顺带执行，无需额外的生命周期管理） */
+function cleanupOldImages() {
+  const absDir = safeResolve(IMAGE_DIR_REL);
+  if (!absDir || !existsSync(absDir)) return;
+  const now = Date.now();
+  try {
+    for (const name of readdirSync(absDir)) {
+      const p = join(absDir, name);
+      try {
+        if (now - statSync(p).mtimeMs > IMAGE_TTL_MS) unlinkSync(p);
+      } catch {
+        /* 单个文件清理失败不影响上传 */
+      }
+    }
+  } catch {
+    /* 目录不可读时忽略 */
+  }
+}
 
 async function which(bin: string): Promise<boolean> {
   const cmd = process.platform === 'win32' ? 'where' : 'which';
@@ -224,7 +396,40 @@ export function aiCliApiPlugin(): Plugin {
             );
             return sendJson(res, {
               success: true,
-              data: { clis: Object.fromEntries(entries), models: SUPPORTED_MODELS },
+              data: { clis: Object.fromEntries(entries), models: await getSupportedModels() },
+            });
+          }
+
+          /**
+           * 图片上传：前端把剪贴板/选择的图片转成 dataURL 发过来，这里落盘成真实文件。
+           * 必须落盘——AI CLI 读图靠的是 Read 工具读本地文件，base64 字符串它无法识别。
+           */
+          if (pathname === '/api/ai/upload' && req.method === 'POST') {
+            // 先按 Content-Length 挡掉超大请求体，避免整个 body 被读进内存
+            const declared = Number(req.headers['content-length'] || 0);
+            if (declared > MAX_IMAGE_BYTES * 1.4) {
+              return sendError(res, `单张图片不能超过 ${Math.round(MAX_IMAGE_BYTES / 1024 / 1024)}MB`, 413);
+            }
+            const body = await readJsonBody<{ name?: string; dataUrl?: string }>(req);
+            const matched = /^data:([\w.+-]+\/[\w.+-]+);base64,([\s\S]+)$/.exec(body.dataUrl || '');
+            if (!matched) return sendError(res, '图片数据格式不正确（需为 dataURL base64）');
+            const ext = IMAGE_MIME_EXT[matched[1].toLowerCase()];
+            if (!ext) return sendError(res, '仅支持 png / jpg / gif / webp 格式的图片');
+            const buf = Buffer.from(matched[2], 'base64');
+            if (!buf.length) return sendError(res, '图片内容为空');
+            if (buf.length > MAX_IMAGE_BYTES) {
+              return sendError(res, `单张图片不能超过 ${Math.round(MAX_IMAGE_BYTES / 1024 / 1024)}MB`);
+            }
+            const absDir = safeResolve(IMAGE_DIR_REL);
+            if (!absDir) return sendError(res, '图片存放目录不合法', 500);
+            mkdirSync(absDir, { recursive: true });
+            cleanupOldImages();
+            // 文件名只由时间戳 + 随机串 + MIME 决定的扩展名组成，不使用前端传来的名字
+            const file = join(absDir, `${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`);
+            writeFileSync(file, buf);
+            return sendJson(res, {
+              success: true,
+              data: { path: `${IMAGE_DIR_REL}/${basename(file)}`, size: buf.length },
             });
           }
 

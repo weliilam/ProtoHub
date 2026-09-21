@@ -19,6 +19,16 @@ src/docs/
 # 本地运行/数据产物
 dev.stdout.log
 dev.stderr.log
+dev_stdout.log
+dev_stderr.log
+# 本地录屏（体积大，不入库）
+/videos/
+# 根目录一次性探索脚本（Playwright 抓取等，不入库）
+/*.cjs
+# 绘图中间产物
+/flow_change_product.mmd
+# AI 助手图片临时目录（上传的图片仅在本地使用）
+/.codebuddy/tmp/
 annotations.json.bak
 # 根目录调试/临时文件（不入库）
 /_*.txt
@@ -30,6 +40,9 @@ annotations.json.bak
 /_*.xml
 /_*.ps1
 /_*.mmd
+/_*.bat
+/_*.png
+/_*.vue
 fetch-code-skill.md
 # 根目录业务无关文件（不入库）
 /*.csv

@@ -1,0 +1,479 @@
+<title>B2B看板与B2B订单新增需求</title>
+
+<h1>需求修订记录</h1>
+
+<table>
+  <thead><tr><th background-color="light-gray">修订日期</th><th background-color="light-gray">版本号</th><th background-color="light-gray">修订人</th><th background-color="light-gray">修订内容</th><th background-color="light-gray">修订理由</th></tr></thead>
+  <tbody>
+    <tr><td>2026-08-25</td><td>V1.0.0</td><td>产品</td><td>新增</td><td>首次按标准模板编制</td></tr>
+  </tbody>
+</table>
+
+<h1>一、需求背景</h1>
+
+<p><b>业务背景</b>：B2B 看板与 B2B 订单列表是运营人员日常查询、跟单、异常处理的高频页面。随着业务单量增长，运营在批量查询、异常识别、批量操作等环节的效率问题逐渐显现，需要针对性优化操作体验。</p>
+
+<p><b>现状问题</b>：</p>
+<ul>
+  <li>搜索订单号时仅支持英文逗号分隔，复制整段含顿号、空格、分号的单号无法识别，需手工整理。</li>
+  <li>计费结果筛选仅有"欠费"，无法区分白名单客户，需人工逐一判断。</li>
+  <li>扣件原因列仅显示"查看"按钮，需点开详情才能看到原因，信息不直观。</li>
+  <li>扣件详情中看不到每条扣件的审核状态，无法掌握处理进度。</li>
+  <li>时间筛选最多只能查询 31 天，超过无法查询；默认还会预填一段查询周期。</li>
+  <li>跟进备注仅支持单张订单操作，批量场景下需逐单填写。</li>
+  <li>切换看板场景时已填筛选条件与时间范围被清空，需重新填写。</li>
+</ul>
+
+<p><b>需求目的</b>：</p>
+<ol>
+  <li>提升批量查询效率，支持直接粘贴整段单号一次完成查询。</li>
+  <li>增强欠费订单的风险识别能力，快速筛出非白名单欠费订单重点跟进。</li>
+  <li>将扣件信息前置到列表展示，减少逐单点开详情的操作成本。</li>
+  <li>放开时间查询限制并提供快捷周期，满足更长周期的查询诉求。</li>
+  <li>支持批量填写跟进备注，降低重复操作。</li>
+  <li>切换场景时保留用户已填条件，减少重复填写。</li>
+</ol>
+
+<h1>二、业务价值</h1>
+
+<ul>
+  <li><b>组织内部 · 提效指标</b>：【定性】批量查询与批量备注减少重复操作，扣件信息直达列表降低查看成本【定量】单号查询由多次整理粘贴变为一次粘贴完成，预计单次节省操作时间 1-2 分钟</li>
+  <li><b>组织内部 · 风险/合规指标</b>：【定性】新增"欠费（非白名单）"筛选项，风险订单及时识别与催收【定量】欠费非白名单订单从筛出到跟进响应时效缩短</li>
+  <li><b>客户 · 满意度指标</b>：【定性】切换场景不再丢失筛选条件，减少重复操作挫败感【定量】用户重复填写筛选次数降为 0</li>
+</ul>
+
+<h1>三、业务指标达成</h1>
+
+<h2>1、定性指标</h2>
+
+<table>
+  <thead><tr><th background-color="light-gray">指标名称</th><th background-color="light-gray">验证方式</th><th background-color="light-gray">验证对象</th><th background-color="light-gray">验证周期</th><th background-color="light-gray">备注</th></tr></thead>
+  <tbody>
+    <tr><td>批量操作接受度</td><td>访谈</td><td>运营人员</td><td>上线后 2 周</td><td>收集使用反馈</td></tr>
+    <tr><td>筛选保留满意度</td><td>问卷</td><td>运营人员</td><td>上线后 1 个月</td><td>确认无重复填写投诉</td></tr>
+  </tbody>
+</table>
+
+<h2>2、定量达标</h2>
+
+<h3>2.1 关键指标定义（KPIs）</h3>
+
+<table>
+  <thead><tr><th background-color="light-gray">指标名称</th><th background-color="light-gray">指标定义</th><th background-color="light-gray">计算方式</th><th background-color="light-gray">取值来源</th><th background-color="light-gray">目标值</th><th background-color="light-gray">统计周期</th></tr></thead>
+  <tbody>
+    <tr><td>单号批量查询成功率</td><td>多分隔符单号一次查询成功的占比</td><td>成功查询次数 / 总查询次数</td><td>前端埋点</td><td>≥ 99%</td><td>月</td></tr>
+    <tr><td>欠费非白名单筛选使用率</td><td>使用该筛选项的会话占比</td><td>使用次数 / 总筛选次数</td><td>前端埋点</td><td>≥ 20%</td><td>月</td></tr>
+    <tr><td>快捷周期使用率</td><td>快捷周期选项使用占比</td><td>快捷周期选择次数 / 时间筛选总次数</td><td>前端埋点</td><td>≥ 30%</td><td>月</td></tr>
+  </tbody>
+</table>
+
+<h3>2.2 数据采集方案</h3>
+
+<table>
+  <thead><tr><th background-color="light-gray">数据点</th><th background-color="light-gray">采集方式</th><th background-color="light-gray">采集频率</th><th background-color="light-gray">数据负责人</th><th background-color="light-gray">报表/看板</th></tr></thead>
+  <tbody>
+    <tr><td>查询分隔符分布</td><td>前端埋点</td><td>日</td><td>产品</td><td>订单查询看板</td></tr>
+    <tr><td>筛选使用统计</td><td>前端埋点</td><td>日</td><td>产品</td><td>筛选使用看板</td></tr>
+  </tbody>
+</table>
+
+<h2>3、指标跟踪机制</h2>
+
+<table>
+  <thead><tr><th background-color="light-gray">阶段</th><th background-color="light-gray">跟踪内容</th><th background-color="light-gray">跟进人</th><th background-color="light-gray">输出物</th></tr></thead>
+  <tbody>
+    <tr><td>上线首周</td><td>核心指标基线确认</td><td>产品经理</td><td>基线数据报告</td></tr>
+    <tr><td>上线首月</td><td>指标达成情况分析</td><td>产品经理</td><td>月度复盘报告</td></tr>
+    <tr><td>持续跟踪</td><td>指标趋势监控</td><td>产品经理</td><td>数据看板/仪表盘</td></tr>
+  </tbody>
+</table>
+
+<h1>四、业务场景</h1>
+
+<table>
+  <thead><tr><th background-color="light-gray">需求</th><th background-color="light-gray">角色分类</th><th background-color="light-gray">角色身份</th><th background-color="light-gray">行为（业务场景）</th><th background-color="light-gray">行为要求（场景要求）</th></tr></thead>
+  <tbody>
+    <tr><td>需求一</td><td>内部用户</td><td>运营人员</td><td>复制整段多单号（含顿号、逗号等）粘贴到搜索框查询</td><td>一次粘贴即识别全部单号并批量查询</td></tr>
+    <tr><td>需求二</td><td>内部用户</td><td>运营人员</td><td>在计费结果筛选项中选择"欠费（非白名单）"</td><td>列表仅展示欠费且非白名单订单</td></tr>
+    <tr><td>需求三</td><td>内部用户</td><td>运营人员</td><td>在订单列表查看扣件原因列</td><td>直接展示全部原因，多个原因用" | "拼接</td></tr>
+    <tr><td>需求四</td><td>内部用户</td><td>异常处理人员</td><td>点击"查看"打开扣件详情</td><td>每条扣件均显示审核状态</td></tr>
+    <tr><td>需求五</td><td>内部用户</td><td>运营人员</td><td>设置时间筛选条件</td><td>不限查询周期，可快速选择近1/3/6月，默认当天开始</td></tr>
+    <tr><td>需求六</td><td>内部用户</td><td>运营人员</td><td>勾选多张订单填写跟进备注</td><td>一次填写多单生效</td></tr>
+    <tr><td>需求七</td><td>内部用户</td><td>运营人员</td><td>切换看板场景</td><td>保留已填筛选条件与时间范围</td></tr>
+    <tr><td>需求八</td><td>内部用户</td><td>运营人员</td><td>查看扣件原因列</td><td>同时展示异常件数</td></tr>
+  </tbody>
+</table>
+
+<h1>五、需求范围</h1>
+
+<ul>
+  <li><b>系统环境</b>：中国区、北美区</li>
+  <li><b>业务模式</b>：YT</li>
+  <li><b>涉及系统</b>：B2B看板、B2B订单列表</li>
+  <li><b>模块范围</b>：B2B订单列表页面、B2B看板页面</li>
+  <li><b>角色</b>：运营人员、异常处理人员</li>
+</ul>
+
+<h1>六、流程图</h1>
+
+<whiteboard type="mermaid" path="@scripts/flow.mmd"></whiteboard>
+
+<h1>七、功能清单</h1>
+
+<table>
+  <thead><tr><th background-color="light-gray">序号</th><th background-color="light-gray">系统</th><th background-color="light-gray">菜单/模块</th><th background-color="light-gray">最终效果</th></tr></thead>
+  <tbody>
+    <tr><td>01</td><td>B2B订单列表</td><td>订单号搜索</td><td>支持顿号、逗号、空格、分号等多分隔符批量查询</td></tr>
+    <tr><td>02</td><td>B2B订单列表</td><td>计费结果筛选</td><td>新增"欠费（非白名单）"筛选项</td></tr>
+    <tr><td>03</td><td>B2B订单列表</td><td>扣件原因列</td><td>直接展示全部扣件原因，"查看"按钮放末尾</td></tr>
+    <tr><td>04</td><td>B2B订单列表</td><td>扣件详情</td><td>增加审核状态展示</td></tr>
+    <tr><td>05</td><td>B2B订单列表/B2B看板</td><td>时间筛选</td><td>放开限制，新增近1/3/6月快捷选项，默认当天开始</td></tr>
+    <tr><td>06</td><td>B2B订单列表</td><td>跟进备注</td><td>支持勾选多张订单批量新增备注</td></tr>
+    <tr><td>07</td><td>B2B看板</td><td>场景切换</td><td>切换场景时保留已填筛选条件与时间范围</td></tr>
+    <tr><td>08</td><td>B2B订单列表</td><td>扣件原因列</td><td>增加异常件数展示</td></tr>
+  </tbody>
+</table>
+
+<h1>八、功能描述</h1>
+
+<whiteboard type="mermaid" path="@data/design-lark-chart/b2b-prd/diagram.mmd"></whiteboard>
+
+<h3>1.1 订单号批量查询</h3>
+
+<ul>
+  <li><b>功能说明</b>：支持在订单号搜索框粘贴含多种分隔符的多个单号，系统自动拆分后批量查询。</li>
+  <li><b>操作路径</b>：
+    <ol>
+      <li>进入 B2B 订单列表页面。</li>
+      <li>复制整段单号（如：YT001、YT002 YT003）粘贴到搜索框。</li>
+      <li>点击查询，列表展示全部匹配订单。</li>
+    </ol>
+  </li>
+  <li><b>界面交互规则</b>：
+    <ul>
+      <li>搜索框保持现有输入形态，无需切换输入模式。</li>
+      <li>查询后若存在无法识别的单号，在列表顶部提示"部分单号未识别"。</li>
+    </ul>
+  </li>
+  <li><b>业务逻辑规则</b>：
+    <ul>
+      <li>分隔符支持：英文逗号、中文逗号、顿号、空格、分号（英文/中文）。</li>
+      <li>识别规则：将输入文本按上述分隔符拆分，去除空白后逐个查询。</li>
+      <li>单号去重后查询，避免重复结果。</li>
+    </ul>
+  </li>
+</ul>
+
+<p><b>示例说明</b>：</p>
+
+<table>
+  <thead><tr><th background-color="light-gray">输入</th><th background-color="light-gray">拆分结果</th><th background-color="light-gray">预期结果</th><th background-color="light-gray">原因/说明</th></tr></thead>
+  <tbody>
+    <tr><td>YT001,YT002,YT003</td><td>YT001 / YT002 / YT003</td><td>查询到 3 个单号</td><td>英文逗号分隔</td></tr>
+    <tr><td>YT001、YT002 YT003</td><td>YT001 / YT002 / YT003</td><td>查询到 3 个单号</td><td>顿号、空格分隔</td></tr>
+    <tr><td>YT001；YT002; YT003</td><td>YT001 / YT002 / YT003</td><td>查询到 3 个单号</td><td>中英文分号分隔</td></tr>
+    <tr><td>YT001,,YT002</td><td>YT001 / YT002</td><td>查询到 2 个单号</td><td>连续分隔符视为空片段，忽略</td></tr>
+  </tbody>
+</table>
+
+<h3>1.2 计费结果新增"欠费（非白名单）"选项</h3>
+
+<ul>
+  <li><b>功能说明</b>：在计费结果筛选中增加"欠费（非白名单）"选项，快速筛出需重点跟进的欠费订单。</li>
+  <li><b>操作路径</b>：
+    <ol>
+      <li>进入 B2B 订单列表页面。</li>
+      <li>打开计费结果下拉框。</li>
+      <li>选择"欠费（非白名单）"，点击查询。</li>
+    </ol>
+  </li>
+  <li><b>界面交互规则</b>：
+    <ul>
+      <li>选项展示在下拉列表中，与现有选项并列。</li>
+      <li>选择后筛选标签显示"欠费（非白名单）"。</li>
+    </ul>
+  </li>
+  <li><b>业务逻辑规则</b>：
+    <ul>
+      <li>该选项 = 计费结果为"欠费" 且 客户不在白名单。</li>
+      <li>仅过滤查询，不影响其他筛选条件的组合使用。</li>
+    </ul>
+  </li>
+</ul>
+
+<p><b>示例说明</b>：</p>
+
+<table>
+  <thead><tr><th background-color="light-gray">订单</th><th background-color="light-gray">计费结果</th><th background-color="light-gray">是否白名单</th><th background-color="light-gray">勾选"欠费（非白名单）"后</th><th background-color="light-gray">原因/说明</th></tr></thead>
+  <tbody>
+    <tr><td>订单A</td><td>欠费</td><td>是</td><td>不展示</td><td>白名单客户，不满足非白名单条件</td></tr>
+    <tr><td>订单B</td><td>欠费</td><td>否</td><td>展示</td><td>同时满足欠费且非白名单</td></tr>
+    <tr><td>订单C</td><td>计费成功</td><td>否</td><td>不展示</td><td>不满足欠费条件</td></tr>
+  </tbody>
+</table>
+
+<h3>1.3 扣件原因列直接展示多个原因</h3>
+
+<ul>
+  <li><b>功能说明</b>：订单列表"扣件原因"列直接展示全部扣件原因，替代仅显示"查看"按钮。</li>
+  <li><b>操作路径</b>：
+    <ol>
+      <li>进入 B2B 订单列表页面。</li>
+      <li>查看"扣件原因"列，直接看到原因文字。</li>
+      <li>点击原因末尾"查看"按钮进入详情。</li>
+    </ol>
+  </li>
+  <li><b>界面交互规则</b>：
+    <ul>
+      <li>多个原因用" | "拼接展示，文字超出列宽时省略，末尾保留"查看"。</li>
+      <li>"查看"按钮固定在原因文字末尾。</li>
+    </ul>
+  </li>
+  <li><b>业务逻辑规则</b>：
+    <ul>
+      <li>原因数据按扣件记录生成顺序拼接。</li>
+      <li>点击"查看"仍打开原扣件详情弹框。</li>
+    </ul>
+  </li>
+</ul>
+
+<h3>1.4 扣件详情增加审核状态</h3>
+
+<ul>
+  <li><b>功能说明</b>：扣件详情中每条扣件展示审核状态，便于异常处理人员掌握处理进度。</li>
+  <li><b>操作路径</b>：
+    <ol>
+      <li>点击订单"扣件原因"列的"查看"。</li>
+      <li>在详情弹框查看每条扣件的审核状态。</li>
+    </ol>
+  </li>
+  <li><b>界面交互规则</b>：
+    <ul>
+      <li>扣件详情表格增加"审核状态"列。</li>
+      <li>审核状态用文字展示（如：待审核、已审核、审核不通过）。</li>
+    </ul>
+  </li>
+  <li><b>业务逻辑规则</b>：
+    <ul>
+      <li>审核状态取扣件数据中的审核字段。</li>
+      <li>无审核记录时展示"待审核"。</li>
+    </ul>
+  </li>
+</ul>
+
+<h3>1.5 时间筛选放开限制并增加快捷周期</h3>
+
+<ul>
+  <li><b>功能说明</b>：放开时间查询限制，新增近1/3/6月快捷选项，默认从当天开始选择。</li>
+  <li><b>操作路径</b>：
+    <ol>
+      <li>进入 B2B 订单列表/看板页面。</li>
+      <li>点击时间选择器，选择快捷周期或自定义时间。</li>
+      <li>默认选中当天日期，不自动填充固定周期。</li>
+    </ol>
+  </li>
+  <li><b>界面交互规则</b>：
+    <ul>
+      <li>时间选择器快捷选项：近1月、近3月、近6月。</li>
+      <li>打开页面默认选中当天日期，不预填历史周期。</li>
+    </ul>
+  </li>
+  <li><b>业务逻辑规则</b>：
+    <ul>
+      <li>移除 31 天查询上限，支持任意周期查询。</li>
+      <li>快捷周期按自然月计算。</li>
+    </ul>
+  </li>
+</ul>
+
+<p><b>示例说明</b>：</p>
+
+<table>
+  <thead><tr><th background-color="light-gray">场景</th><th background-color="light-gray">操作</th><th background-color="light-gray">预期结果</th><th background-color="light-gray">原因/说明</th></tr></thead>
+  <tbody>
+    <tr><td>打开页面</td><td>无操作</td><td>默认从当天开始</td><td>不预填固定周期</td></tr>
+    <tr><td>选择快捷周期</td><td>点击"近3月"</td><td>查询近 3 个月数据</td><td>快捷周期按自然月计算</td></tr>
+    <tr><td>自定义时间</td><td>选择跨年时间段</td><td>可正常查询</td><td>已放开 31 天限制</td></tr>
+  </tbody>
+</table>
+
+<h3>1.6 跟进备注批量操作</h3>
+
+<ul>
+  <li><b>功能说明</b>：跟进备注改为按钮形式，支持勾选多张订单批量新增备注。</li>
+  <li><b>操作路径</b>：
+    <ol>
+      <li>勾选多张订单。</li>
+      <li>点击"跟进备注"按钮。</li>
+      <li>填写备注内容提交，多单生效。</li>
+    </ol>
+  </li>
+  <li><b>界面交互规则</b>：
+    <ul>
+      <li>跟进备注以按钮展示，批量勾选后按钮可点击。</li>
+      <li>提交成功后提示"备注填写成功"。</li>
+    </ul>
+  </li>
+  <li><b>业务逻辑规则</b>：
+    <ul>
+      <li>批量备注写入所选全部订单。</li>
+      <li>单条订单的历史备注记录完整保留。</li>
+    </ul>
+  </li>
+</ul>
+
+<h3>1.7 切换看板场景保留筛选条件</h3>
+
+<ul>
+  <li><b>功能说明</b>：切换看板场景时保留用户已填筛选条件与时间范围，仅点击"重置"时清空。</li>
+  <li><b>操作路径</b>：
+    <ol>
+      <li>填写筛选条件和时间范围。</li>
+      <li>切换其他场景再切回。</li>
+      <li>已填条件完整保留。</li>
+    </ol>
+  </li>
+  <li><b>界面交互规则</b>：
+    <ul>
+      <li>场景切换不触发筛选清空。</li>
+      <li>"重置"按钮手动清空全部条件。</li>
+    </ul>
+  </li>
+  <li><b>业务逻辑规则</b>：
+    <ul>
+      <li>切换场景仅更新场景相关筛选默认值，不重置用户已填数据。</li>
+      <li>保留逻辑在前端实现，无需后端改动。</li>
+    </ul>
+  </li>
+</ul>
+
+<h3>1.8 扣件原因列增加异常件数</h3>
+
+<ul>
+  <li><b>功能说明</b>：扣件原因列同时展示该订单的异常件数，便于掌握异常规模。</li>
+  <li><b>操作路径</b>：
+    <ol>
+      <li>进入 B2B 订单列表页面。</li>
+      <li>查看扣件原因列，看到原因文字及异常件数。</li>
+    </ol>
+  </li>
+  <li><b>界面交互规则</b>：
+    <ul>
+      <li>展示格式：原因文字旁展示异常件数。</li>
+      <li>无异常件数数据时不展示件数。</li>
+    </ul>
+  </li>
+  <li><b>业务逻辑规则</b>：
+    <ul>
+      <li>件数取扣件记录中的异常件数汇总。</li>
+      <li>与扣件原因共用同一列展示。</li>
+    </ul>
+  </li>
+</ul>
+
+<h1>九、验证标准</h1>
+
+<h2>1、验收场景</h2>
+
+<table>
+  <thead><tr><th background-color="light-gray">环节/场景</th><th background-color="light-gray">描述</th><th background-color="light-gray">角色</th><th background-color="light-gray">涉及系统</th><th background-color="light-gray">产品经理</th><th background-color="light-gray">BO</th><th background-color="light-gray">验收状态</th><th background-color="light-gray">测试案例</th></tr></thead>
+  <tbody>
+    <tr><td>多分隔符批量查询</td><td><ol><li>复制含顿号、空格、分号的多单号粘贴到搜索框</li><li>点击查询</li><li>预期：全部单号订单均展示</li></ol></td><td>运营人员</td><td>B2B订单列表</td><td></td><td></td><td>产品：<br/>业务：</td><td></td></tr>
+    <tr><td>欠费（非白名单）筛选</td><td><ol><li>进入列表页打开计费结果下拉</li><li>选择"欠费（非白名单）"点击查询</li><li>预期：仅展示欠费且非白名单订单</li></ol></td><td>运营人员</td><td>B2B订单列表</td><td></td><td></td><td>产品：<br/>业务：</td><td></td></tr>
+    <tr><td>扣件原因列直展</td><td><ol><li>进入列表页查看扣件原因列</li><li>预期：直接展示全部原因，"查看"按钮在末尾</li></ol></td><td>运营人员</td><td>B2B订单列表</td><td></td><td></td><td>产品：<br/>业务：</td><td></td></tr>
+    <tr><td>扣件详情审核状态</td><td><ol><li>点击"查看"打开扣件详情</li><li>预期：每条扣件显示审核状态</li></ol></td><td>异常处理人员</td><td>B2B订单列表</td><td></td><td></td><td>产品：<br/>业务：</td><td></td></tr>
+    <tr><td>时间筛选放开与快捷周期</td><td><ol><li>打开页面确认默认从当天开始</li><li>选择近3月快捷周期查询</li><li>选择跨年自定义时间段</li><li>预期：均可正常查询</li></ol></td><td>运营人员</td><td>B2B订单列表/B2B看板</td><td></td><td></td><td>产品：<br/>业务：</td><td></td></tr>
+    <tr><td>跟进备注批量操作</td><td><ol><li>勾选多张订单</li><li>点击"跟进备注"填写内容提交</li><li>预期：全部勾选订单均写入备注</li></ol></td><td>运营人员</td><td>B2B订单列表</td><td></td><td></td><td>产品：<br/>业务：</td><td></td></tr>
+    <tr><td>场景切换保留筛选</td><td><ol><li>填写筛选条件和时间范围</li><li>切换场景再切回</li><li>预期：已填条件保留；点"重置"才清空</li></ol></td><td>运营人员</td><td>B2B看板</td><td></td><td></td><td>产品：<br/>业务：</td><td></td></tr>
+    <tr><td>扣件异常件数展示</td><td><ol><li>查看扣件原因列</li><li>预期：原因旁展示异常件数</li></ol></td><td>运营人员</td><td>B2B订单列表</td><td></td><td></td><td>产品：<br/>业务：</td><td></td></tr>
+  </tbody>
+</table>
+
+<h2>2、造数需求</h2>
+
+<table>
+  <thead><tr><th background-color="light-gray">数据内容</th><th background-color="light-gray">数据要求</th><th background-color="light-gray">使用场景</th><th background-color="light-gray">备注</th></tr></thead>
+  <tbody>
+    <tr><td>含多种分隔符的多单号订单</td><td>至少 3 个单号含逗号、顿号、空格</td><td>需求一验证</td><td></td></tr>
+    <tr><td>欠费订单含白名单与非白名单客户</td><td>各 2 条</td><td>需求二验证</td><td></td></tr>
+    <tr><td>扣件订单含多条扣件记录</td><td>部分含审核状态</td><td>需求三、四、八验证</td><td></td></tr>
+    <tr><td>跨月订单数据</td><td>覆盖近 6 个月</td><td>需求五验证</td><td></td></tr>
+  </tbody>
+</table>
+
+<h2>3、风险点说明</h2>
+
+<ul>
+  <li><b>系统类风险</b>：需求二、四需与计费、扣件数据来源系统确认字段，需前置联调与验收数据准备。</li>
+  <li><b>业务风险</b>：批量备注功能涉及多单数据写入，需明确权限与操作留痕要求。</li>
+</ul>
+
+<h1>十、非功能需求</h1>
+
+<h2>多语言</h2>
+
+<ul>
+  <li><b>是否支持多语言（必选）</b>：*需要支持多语言*（默认中英文）</li>
+  <li>系统多语言化（支持中文、英文）要求：
+    <ul>
+      <li>已包含在多语言项目中的模块，默认后期迭代需求需支持多语言</li>
+      <li>未包含在多语言项目中的模块，产品在需求文档中标注是否需要支持多语言</li>
+    </ul>
+  </li>
+  <li>产研测多语言规范参考对应指导方案</li>
+</ul>
+
+<h2>多时区</h2>
+
+<ul>
+  <li><b>是否支持多时区（必选）</b>：*需要支持多时区*</li>
+  <li>多时区规范请参考对应指导方案</li>
+</ul>
+
+<h2>安全合规</h2>
+
+<p>客商敏感信息涉及保护用户隐私、确保数据安全性和合规性，加强信息安全管控，各业务系统需对敏感字段做脱敏处理。</p>
+
+<table>
+  <thead><tr><th background-color="light-gray">敏感字段名称</th><th background-color="light-gray">敏感程度</th><th background-color="light-gray">脱敏方式</th></tr></thead>
+  <tbody>
+    <tr><td>*服务渠道名称*</td><td>*限制字段*</td><td>*参照信息安全部统一要求*</td></tr>
+  </tbody>
+</table>
+
+<h2>权限</h2>
+
+<p>权限管理落实到常规迭代中是产研测需要达成的共识，当前 LBU 各系统基本从菜单权限、按钮权限和数据权限三个维度做权限管理。</p>
+
+<table>
+  <thead><tr><th background-color="light-gray">权限类型</th><th background-color="light-gray">功能名称</th><th background-color="light-gray">是否做权限管控</th></tr></thead>
+  <tbody>
+    <tr><td>*菜单权限*</td><td>*B2B订单列表*</td><td>*是*</td></tr>
+    <tr><td>*按钮权限*</td><td>*【跟进备注】、【查看】*</td><td>*是*</td></tr>
+    <tr><td>*数据权限*</td><td>*/*</td><td>*否*</td></tr>
+  </tbody>
+</table>
+
+<h2>性能</h2>
+
+<p>系统性能直接影响系统用户体验和稳定性，明确性能目标可帮助开发团队在设计和实现过程中考虑性能优化。</p>
+
+<table>
+  <thead><tr><th background-color="light-gray">性能类型</th><th background-color="light-gray">可用率</th><th background-color="light-gray">响应时间</th><th background-color="light-gray">并发量</th></tr></thead>
+  <tbody>
+    <tr><td>外部API接口</td><td>99.99%</td><td>&lt; 500ms</td><td>&gt; 100（单接口）</td></tr>
+    <tr><td>系统功能按钮操作</td><td>99.99%</td><td>&lt; 1s</td><td>&gt; 50</td></tr>
+  </tbody>
+</table>
+
+<h2>浏览器兼容性</h2>
+
+<p>各系统逐步转 web 化，浏览器兼容性直接关系 Web 应用在不同浏览器中的表现和用户体验。</p>
+
+<table>
+  <thead><tr><th background-color="light-gray">web端需求，浏览器兼容性指引</th><th background-color="light-gray"></th></tr></thead>
+  <tbody>
+    <tr><td>浏览器兼容</td><td>兼容 Windows 的谷歌、火狐；Mac 系统的谷歌、火狐、Safari</td></tr>
+    <tr><td>自适应兼容</td><td>分辨率：自适应 1440~1920 和小于 1440，固定到 1440，出现横向滚动条</td></tr>
+  </tbody>
+</table>

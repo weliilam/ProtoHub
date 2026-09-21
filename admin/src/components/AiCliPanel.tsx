@@ -1,20 +1,38 @@
 import { useEffect, useRef, useState } from 'react';
 import { Button, Input, Select, Space, Spin, Tooltip, message } from 'antd';
-import { ClearOutlined, CopyOutlined, RobotOutlined, SendOutlined, StopOutlined } from '@ant-design/icons';
+import {
+  ClearOutlined,
+  CloseOutlined,
+  CopyOutlined,
+  PictureOutlined,
+  RobotOutlined,
+  SendOutlined,
+  StopOutlined,
+} from '@ant-design/icons';
 import { api } from '../api';
 import { aiRunStore } from '../aiRunStore';
 import { aiTaskStore } from '../aiCliTask';
-import { getAiModel, setAiModel, useAiModel } from '../aiModelStore';
-import type { AiModelOption, CliStatus, EntryItem } from '../types';
+import { getAiModel, setAiModel, setAiModelOptions, useAiModel } from '../aiModelStore';
+import {
+  MAX_IMAGES,
+  MAX_IMAGE_BYTES,
+  fileToDataUrl,
+  imageBlockReason,
+  imagePromptBlock,
+  type AttachedImage,
+} from '../aiVision';
+import type { AiModelOption, CliStatus, EntryItem, EntryType } from '../types';
 
 interface ChatMsg {
   role: 'user' | 'assistant';
   content: string;
   cli?: string;
   time: number;
+  /** 该条用户消息携带的图片数量（仅存数量，不把 base64 写进 localStorage） */
+  imageCount?: number;
 }
 
-
+/** 图片附件规则（数量/体积上限、能力闸门、prompt 措辞）统一放在 ../aiVision，与新建原型弹框共用 */
 
 /** 渲染 AI 输出（支持 Markdown 列表） */
 function RenderOutput({ text }: { text: string }) {
@@ -157,6 +175,12 @@ export default function AiCliPanel({ selected }: { selected: EntryItem | null })
   const [elapsed, setElapsed] = useState(0);
   /** 当前运行/最近一次运行的操作目标路径（如 src/prototypes/xxx/），让用户确认 AI 改的是当前原型 */
   const [runTarget, setRunTarget] = useState('');
+  /** 已添加的待发送图片：落盘后的路径 + 缩略图预览 */
+  const [images, setImages] = useState<AttachedImage[]>([]);
+  /** 图片上传中（转 dataURL → 落盘），期间禁止发送与继续添加 */
+  const [uploading, setUploading] = useState(false);
+  /** 隐藏的文件选择框：点击回形针按钮时触发 */
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const historyKey = selected?.name ?? '__global__';
   const messagesBoxRef = useRef<HTMLDivElement>(null);
   /** 是否贴底自动滚动：用户手动上翻后停止跟随，回到底部后恢复 */
@@ -179,6 +203,8 @@ export default function AiCliPanel({ selected }: { selected: EntryItem | null })
       .then((s) => {
         setStatus(s.clis);
         setModels(s.models);
+        // 同步给全局 store，供批注/Git 面板把模型 id 翻译成显示名
+        setAiModelOptions(s.models);
         const firstAvailable = Object.entries(s.clis).find(([, v]) => v.available)?.[0];
         if (firstAvailable) setCli((cur) => cur || firstAvailable);
       })
@@ -190,6 +216,9 @@ export default function AiCliPanel({ selected }: { selected: EntryItem | null })
     setMessages(loadHistory(historyKey));
     setStreaming('');
     setRunTarget('');
+    // 图片是"针对当前目标"准备的临时附件，切走即清空，避免误发到另一个原型
+    setImages([]);
+    setUploading(false);
     stickToBottom.current = true;
     lastUserScrollRef.current = 0;
     programScrollingRef.current = false;
@@ -260,15 +289,85 @@ export default function AiCliPanel({ selected }: { selected: EntryItem | null })
   /** 格式化已运行时长：<60s 显示秒，否则 分:秒 */
   const fmtElapsed = (s: number) => (s < 60 ? `${s}s` : `${Math.floor(s / 60)}m${String(s % 60).padStart(2, '0')}s`);
 
+  /**
+   * 图片输入闸门：imageHint 非空 = 当前模型不支持图片输入，粘贴/拖拽/选择一律拦截。
+   * 判定依据是服务端 /api/ai/status 返回的模型 vision 标记（见 server/aiCliApi.ts）。
+   */
+  const imageHint = imageBlockReason(cli, status[cli]?.label, model, models);
+  const imageOk = imageHint === '';
+
+  /** 添加图片：先鉴别模型能力，再逐张转 dataURL 上传落盘，最后由 AI 用 Read 工具读取 */
+  const addImages = async (files: File[]) => {
+    const picked = files.filter((f) => f.type.startsWith('image/'));
+    if (!picked.length) return;
+    // 闸门：非多模态模型直接拒绝。粘贴场景也必须给明确反馈，否则用户只会觉得"粘贴没反应"
+    if (!imageOk) {
+      message.warning(imageHint);
+      return;
+    }
+    if (running) {
+      message.warning('AI 正在执行中，暂时不能再添加图片');
+      return;
+    }
+    const remain = MAX_IMAGES - images.length;
+    if (remain <= 0) {
+      message.warning(`一次最多添加 ${MAX_IMAGES} 张图片`);
+      return;
+    }
+    const tooBig = picked.find((f) => f.size > MAX_IMAGE_BYTES);
+    if (tooBig) {
+      message.warning(`图片「${tooBig.name}」超过 ${MAX_IMAGE_BYTES / 1024 / 1024}MB，请压缩后再添加`);
+      return;
+    }
+    const batch = picked.slice(0, remain);
+    if (picked.length > remain) {
+      message.warning(`一次最多添加 ${MAX_IMAGES} 张图片，已忽略多余的 ${picked.length - remain} 张`);
+    }
+    setUploading(true);
+    try {
+      for (const f of batch) {
+        const dataUrl = await fileToDataUrl(f);
+        const { path } = await api.aiUploadImage(dataUrl, f.name);
+        setImages((cur) => (cur.length >= MAX_IMAGES ? cur : [...cur, { path, url: dataUrl, name: f.name }]));
+      }
+    } catch (e: any) {
+      message.error(e.message || '图片上传失败');
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  /** 粘贴图片：截图工具复制后 Ctrl+V 直接进输入区 */
+  const handlePaste = (e: React.ClipboardEvent) => {
+    const files = Array.from(e.clipboardData?.files || []).filter((f) => f.type.startsWith('image/'));
+    if (!files.length) return;
+    // 拦掉默认粘贴，避免把 blob/base64 当文本塞进输入框
+    e.preventDefault();
+    void addImages(files);
+  };
+
+  /** 拖拽图片：拖到输入区即可添加 */
+  const handleDrop = (e: React.DragEvent) => {
+    const files = Array.from(e.dataTransfer?.files || []);
+    if (!files.length) return;
+    e.preventDefault();
+    void addImages(files);
+  };
+
   const run = async (text?: string) => {
     const content = (text ?? prompt).trim();
     if (!cli || !content) {
       message.warning('请选择 CLI 并输入指令');
       return;
     }
+    // 兜底：附件已存在但模型被切成非多模态（或改选了别的模型）时不允许发送
+    if (images.length > 0 && !imageOk) {
+      message.warning(`已添加的图片无法随当前模型发送：${imageHint}`);
+      return;
+    }
     const entryName = selected?.name; // 捕获调用时刻的条目名，用于竞态检测
     const entryKey = entryName ?? '__global__';
-    const userMsg: ChatMsg = { role: 'user', content, time: Date.now() };
+    const userMsg: ChatMsg = { role: 'user', content, time: Date.now(), imageCount: images.length || undefined };
     const next = [...messages, userMsg];
     setMessages(next);
     saveHistory(entryKey, next);
@@ -293,7 +392,8 @@ export default function AiCliPanel({ selected }: { selected: EntryItem | null })
     });
     // 注入"当前选中目标"上下文：即使只输入"把按钮改大点"，AI 也知道改的是哪个原型
     const ctx = entryContext(selected);
-    const finalPrompt = ctx ? `${ctx}\n\n用户指令：\n${content}` : content;
+    const imageBlock = imagePromptBlock(images);
+    const finalPrompt = [ctx, imageBlock, `用户指令：\n${content}`].filter(Boolean).join('\n\n');
     // 启动全局任务：任务生命周期独立于本组件，关闭面板后继续在后台执行
     aiTaskStore.start({ entryKey, cli, target });
     const controller = new AbortController();
@@ -324,7 +424,11 @@ export default function AiCliPanel({ selected }: { selected: EntryItem | null })
       const done = [...next, { role: 'assistant' as const, content: finalText, cli, time: Date.now() }];
       // 无论组件是否卸载都写入历史：关闭面板后任务完成，重开面板即可看到完整回答
       saveHistory(entryKey, done);
-      if (mountedRef.current && selectedNameRef.current === entryName) setMessages(done);
+      if (mountedRef.current && selectedNameRef.current === entryName) {
+        setMessages(done);
+        // 图片已随本次指令成功送达，清空附件区；失败时保留，方便直接重试
+        setImages([]);
+      }
     } catch (e: any) {
       if (e?.name === 'AbortError') {
         // 用户手动停止：给出明确反馈
@@ -527,7 +631,10 @@ export default function AiCliPanel({ selected }: { selected: EntryItem | null })
                     }}
                   />
                 ) : (
-                  m.content
+                  <>
+                    {m.content}
+                    {!!m.imageCount && <span className="ph-ai-msg-imgs">含 {m.imageCount} 张图片</span>}
+                  </>
                 )}
               </div>
             ))
@@ -587,8 +694,9 @@ export default function AiCliPanel({ selected }: { selected: EntryItem | null })
                 size="small"
                 value={model || undefined}
                 options={[
-                  { value: '', label: '自动（跟随 CLI 默认）' },
-                  ...models.map((m) => ({ value: m.id, label: m.label })),
+                  { value: '', label: '自动（跟随 CLI 默认，不支持图片）' },
+                  // 多模态模型显式标注：只有它们能理解粘贴/上传的图片
+                  ...models.map((m) => ({ value: m.id, label: m.vision ? `${m.label}（多模态·支持图片）` : m.label })),
                 ]}
                 onChange={(v) => setAiModel(v ?? '')}
                 placeholder="选择模型（选后全局固定）"
@@ -628,40 +736,102 @@ export default function AiCliPanel({ selected }: { selected: EntryItem | null })
               </Button>
             </div>
           ) : (
-            <div className="ph-ai-input-row">
-              <Input.TextArea
-                className="ph-ai-input"
-                placeholder="输入指令，Enter 发送，Shift+Enter 换行…"
-                value={prompt}
-                onChange={(e) => setPrompt(e.target.value)}
-                onPressEnter={(e) => {
-                  if (!e.shiftKey && !running) {
-                    e.preventDefault();
-                    run();
-                  }
+            <>
+              {/* 附件区：缩略图 + 能力提示。模型被切成非多模态时在此显式警告，并阻止发送 */}
+              {images.length > 0 && (
+                <div className="ph-ai-attach">
+                  <div className="ph-ai-attach-list">
+                    {images.map((im) => (
+                      <div key={im.path} className="ph-ai-attach-item" title={`${im.name}\n${im.path}`}>
+                        <img src={im.url} alt={im.name} />
+                        <button
+                          className="ph-ai-attach-del"
+                          disabled={running}
+                          onClick={() => setImages((cur) => cur.filter((x) => x.path !== im.path))}
+                        >
+                          <CloseOutlined />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                  <div className={imageOk ? 'ph-ai-attach-hint' : 'ph-ai-attach-hint blocked'}>
+                    {imageOk
+                      ? `已添加 ${images.length}/${MAX_IMAGES} 张图片，发送后由 AI 读取`
+                      : imageHint}
+                  </div>
+                </div>
+              )}
+              <div
+                className="ph-ai-input-row"
+                onDrop={handleDrop}
+                onDragOver={(e) => {
+                  // 只接管文件拖拽，不影响输入框内的文本操作
+                  if (e.dataTransfer?.types?.includes('Files')) e.preventDefault();
                 }}
-                disabled={running}
-                autoSize={{ minRows: 2, maxRows: 5 }}
-              />
-              {running ? (
-                <Tooltip title="停止执行">
+              >
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/png,image/jpeg,image/gif,image/webp"
+                  multiple
+                  style={{ display: 'none' }}
+                  onChange={(e) => {
+                    const files = Array.from(e.target.files || []);
+                    e.target.value = ''; // 复位，允许连续选择同一张图片
+                    void addImages(files);
+                  }}
+                />
+                <Input.TextArea
+                  className="ph-ai-input"
+                  placeholder={
+                    imageOk
+                      ? '输入指令，Enter 发送，Shift+Enter 换行；可直接粘贴/拖拽截图…'
+                      : '输入指令，Enter 发送，Shift+Enter 换行…'
+                  }
+                  value={prompt}
+                  onChange={(e) => setPrompt(e.target.value)}
+                  onPaste={handlePaste}
+                  onPressEnter={(e) => {
+                    if (!e.shiftKey && !running) {
+                      e.preventDefault();
+                      run();
+                    }
+                  }}
+                  disabled={running}
+                  autoSize={{ minRows: 2, maxRows: 5 }}
+                />
+                {/* 多模态模型才可用：非多模态时按钮禁用，Tooltip 说明原因 */}
+                <Tooltip title={imageOk ? '添加图片（也可直接粘贴或拖拽截图）' : imageHint}>
+                  <span className="ph-ai-attach-wrap">
+                    <Button
+                      className="ph-ai-attach-btn"
+                      icon={<PictureOutlined />}
+                      loading={uploading}
+                      disabled={!imageOk || running || uploading}
+                      onClick={() => fileInputRef.current?.click()}
+                    />
+                  </span>
+                </Tooltip>
+                {running ? (
+                  <Tooltip title="停止执行">
+                    <Button
+                      className="ph-ai-send"
+                      danger
+                      icon={<StopOutlined />}
+                      onClick={() => aiTaskStore.get().controller?.abort()}
+                    />
+                  </Tooltip>
+                ) : (
                   <Button
                     className="ph-ai-send"
-                    danger
-                    icon={<StopOutlined />}
-                    onClick={() => aiTaskStore.get().controller?.abort()}
+                    type="primary"
+                    icon={<SendOutlined />}
+                    disabled={running || uploading}
+                    onClick={() => run()}
                   />
-                </Tooltip>
-              ) : (
-                <Button
-                  className="ph-ai-send"
-                  type="primary"
-                  icon={<SendOutlined />}
-                  disabled={running}
-                  onClick={() => run()}
-                />
-              )}
-            </div>
+                )}
+              </div>
+            </>
           )}
         </div>
       </div>

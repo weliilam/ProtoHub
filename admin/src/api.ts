@@ -1,4 +1,14 @@
-import type { AiStatus, Annotation, EntryItem, GitLogItem, GroupConfig, PrdDoc, PrototypeInfo, SourceMatch } from './types';
+import type {
+  AiStatus,
+  Annotation,
+  CreateEntryOptions,
+  EntryItem,
+  GitLogItem,
+  GroupConfig,
+  PrdDoc,
+  PrototypeInfo,
+  SourceMatch,
+} from './types';
 
 async function request<T = any>(url: string, options?: RequestInit): Promise<T> {
   const res = await fetch(url, {
@@ -13,8 +23,11 @@ async function request<T = any>(url: string, options?: RequestInit): Promise<T> 
 export const api = {
   // 条目
   listEntries: () => request<EntryItem[]>('/api/entries'),
-  createEntry: (type: string, name: string, title: string) =>
-    request('/api/entries', { method: 'POST', body: JSON.stringify({ type, name, title }) }),
+  createEntry: (type: string, name: string, title: string, options?: CreateEntryOptions) =>
+    request('/api/entries', {
+      method: 'POST',
+      body: JSON.stringify({ type, name, title, engine: options?.engine, ui: options?.ui }),
+    }),
   renameEntry: (type: string, name: string, newName: string) =>
     request('/api/entries/rename', { method: 'POST', body: JSON.stringify({ type, name, newName }) }),
   deleteEntry: (type: string, name: string) =>
@@ -66,6 +79,15 @@ export const api = {
 
   // AI CLI
   aiStatus: () => request<AiStatus>('/api/ai/status'),
+  /**
+   * 上传 AI 助手图片（粘贴/选择）：传 dataURL，服务端落盘后返回相对项目根的路径。
+   * 图片必须先落盘，AI CLI 才能用 Read 工具读到它的内容。
+   */
+  aiUploadImage: (dataUrl: string, name?: string) =>
+    request<{ path: string; size: number }>('/api/ai/upload', {
+      method: 'POST',
+      body: JSON.stringify({ dataUrl, name }),
+    }),
   /**
    * 执行 AI CLI（流式）。
    * onChunk 回调会实时收到 AI 输出片段；最终返回完整结果。

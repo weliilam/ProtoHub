@@ -30,7 +30,7 @@ import { api } from './api';
 import { useTheme } from './theme';
 import { useAiRunning } from './aiRunStore';
 import type { PickedElement } from './annotation';
-import type { Annotation, EntryItem, PrdDoc, SourceMatch } from './types';
+import type { Annotation, CreateEntryOptions, EntryItem, PrdDoc, SourceMatch } from './types';
 
 type RightPanel = 'annotation' | 'git' | 'ai' | 'prd' | null;
 
@@ -255,9 +255,9 @@ export default function App() {
   };
 
   // ── 条目管理 ──
-  const handleCreate = async (type: string, name: string, title: string) => {
+  const handleCreate = async (type: string, name: string, title: string, options?: CreateEntryOptions) => {
     try {
-      if (type === 'prototype') await api.createEntry('prototype', name, title);
+      if (type === 'prototype') await api.createEntry('prototype', name, title, options);
       else if (type === 'doc') await api.createDoc(name, `# ${title}\n\n`);
       else if (type === 'table') await api.createTable(name);
       message.success('已创建');
