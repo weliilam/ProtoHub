@@ -25,8 +25,9 @@ dev_stderr.log
 /videos/
 # 根目录一次性探索脚本（Playwright 抓取等，不入库）
 /*.cjs
-# 绘图中间产物
+# 绘图中间产物（绘图脚本的中转 mmd，不入库）
 /flow_change_product.mmd
+/scripts/*.mmd
 # AI 助手图片临时目录（上传的图片仅在本地使用）
 /.codebuddy/tmp/
 annotations.json.bak
