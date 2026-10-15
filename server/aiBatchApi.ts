@@ -3,16 +3,17 @@ import type { ChildProcess } from 'child_process';
 import { getPathname, readJsonBody, sendError, sendJson } from './utils';
 import {
   CLI_DEFS,
+  IDLE_TIMEOUT_MS,
+  MAX_TOTAL_MS,
   acquireSlot,
   buildCliArgs,
   killTree,
   recordDuration,
   releaseSlot,
   runCli,
-  touchTask,
   which,
 } from './aiCliApi';
-import type { SlotHandle } from './aiCliApi';
+import type { RunCliTimeoutReason, SlotHandle } from './aiCliApi';
 import { changedFilesSince, createBaselineSnapshot, resolveScope, restoreScopeTo } from './gitApi';
 
 /**
@@ -235,22 +236,21 @@ async function runItem(job: BatchJob, item: BatchItem) {
   const bin = CLI_DEFS[job.cli].bin[0];
   const args = buildCliArgs(job.cli, job.model, null);
   let streamed = '';
-  const { promise, child } = runCli(bin, args, buildItemPrompt(job.instruction, item), 600_000, {
+  // taskId 让进程登记到 runningChildren：兜底回收命中时才能被真正强杀（打点由 runCli 统一完成）
+  const { promise, child } = runCli(bin, args, buildItemPrompt(job.instruction, item), {
+    taskId: slot.id,
     streamJson: job.cli === 'codebuddy',
     onChunk: (c) => {
       streamed += c;
       item.output = streamed.length > MAX_OUTPUT_CHARS ? streamed.slice(-MAX_OUTPUT_CHARS) : streamed;
-      touchTask(slot.id);
     },
-    onThinking: () => touchTask(slot.id),
-    onActivity: () => touchTask(slot.id),
     onError: (m) => {
       item.error = m;
     },
   });
   activeChild = child;
 
-  let result: { output: string; timedOut: boolean } | null = null;
+  let result: { output: string; timedOut: boolean; timeoutReason: RunCliTimeoutReason } | null = null;
   try {
     result = await promise;
   } catch (e: any) {
@@ -272,7 +272,11 @@ async function runItem(job: BatchJob, item: BatchItem) {
     item.error = '已手动停止';
   } else if (result.timedOut) {
     item.status = 'failed';
-    item.error = '执行超时（超过 10 分钟）已强制结束';
+    // 区分两种结局：卡死（长时间无输出）与到顶（跑太久），用户后续动作不同
+    item.error =
+      result.timeoutReason === 'idle'
+        ? `已连续 ${Math.round(IDLE_TIMEOUT_MS / 60_000)} 分钟无输出，判定卡死并强制结束`
+        : `执行已超过 ${Math.round(MAX_TOTAL_MS / 60_000)} 分钟上限，强制结束`;
   } else if (item.error) item.status = 'failed';
   else item.status = 'done';
   if (result?.output) item.output = result.output;

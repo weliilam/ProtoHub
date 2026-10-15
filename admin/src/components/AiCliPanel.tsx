@@ -23,6 +23,7 @@ import {
   type AttachedImage,
 } from '../aiVision';
 import type { AiModelOption, CliStatus, EntryItem, EntryType } from '../types';
+import { timeoutHint } from '../aiTimeout';
 
 interface ChatMsg {
   role: 'user' | 'assistant';
@@ -416,7 +417,7 @@ export default function AiCliPanel({ selected }: { selected: EntryItem | null })
     const controller = new AbortController();
     aiTaskStore.setController(controller);
     try {
-      const { output, timedOut } = await api.aiExecute(
+      const { output, timedOut, timeoutReason } = await api.aiExecute(
         cli,
         finalPrompt,
         (chunk) => {
@@ -444,7 +445,7 @@ export default function AiCliPanel({ selected }: { selected: EntryItem | null })
         },
       );
       if (selectedNameRef.current !== entryName) return; // 已切走，不更新 UI
-      const finalText = output + (timedOut ? '\n\n[已超时，进程被终止]' : '');
+      const finalText = output + (timedOut ? `\n\n[${timeoutHint(timedOut, timeoutReason)}]` : '');
       const done = [...next, { role: 'assistant' as const, content: finalText, cli, time: Date.now() }];
       // 无论组件是否卸载都写入历史：关闭面板后任务完成，重开面板即可看到完整回答
       saveHistory(entryKey, done);

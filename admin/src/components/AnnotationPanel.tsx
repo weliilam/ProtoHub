@@ -23,6 +23,7 @@ import {
 } from '../aiPublishStore';
 import { annotationPaneLabel } from '../annotation';
 import type { Annotation, CliStatus } from '../types';
+import { timeoutHint } from '../aiTimeout';
 
 /** 从 CSS 选择器中提炼出友好标签（取最后一个有意义的 class 名 + 元素名） */
 function friendlySelectorHint(selector: string): string {
@@ -304,12 +305,13 @@ export default function AnnotationPanel({ target, annotations, onToggleStatus, o
   /** 打开"上次发布结果"详情：业务说明 + diff + 日志 + 还原/重试入口 */
   const showStoredOutcome = (o: PublishOutcome, ids: string[]) => {
     const timedOut = o.kind === 'timeout';
+    const timeoutReason = o.timeoutReason ?? null;
     const failed = o.kind === 'error';
     Modal.info({
       title: failed
         ? `发布失败（${o.cli}）`
         : timedOut
-          ? `AI 执行超时（${o.cli} · ${o.model}），请人工确认改动是否完整`
+          ? `AI 执行已终止（${o.cli} · ${o.model}），请人工确认改动是否完整`
           : `CodeBuddy 已应用修改（${o.cli} · ${o.model}）`,
       width: 760,
       content: (
@@ -332,7 +334,7 @@ export default function AnnotationPanel({ target, annotations, onToggleStatus, o
           </div>
           {timedOut && (
             <Typography.Paragraph type="warning" style={{ marginBottom: 8 }}>
-              本次执行超时被终止，可能只改了一半。请展开下方「技术改动明细」核对 diff 与批注是否已全部落实，未落实的部分建议点「重试」补齐。
+              本次执行被强制结束（{timeoutHint(true, timeoutReason)}），可能只改了一半。请展开下方「技术改动明细」核对 diff 与批注是否已全部落实，未落实的部分建议点「重试」补齐。
             </Typography.Paragraph>
           )}
           <Space style={{ marginBottom: 12 }}>
@@ -459,7 +461,7 @@ export default function AnnotationPanel({ target, annotations, onToggleStatus, o
       // 准备结束：补上 CLI/模型信息，并把阶段交还给实时输出推导
       setPublishMeta(batchId, { cli, modelLabel, stage: null });
       const prompt = buildAiPrompt(target, list);
-      const { output, timedOut } = await api.aiExecute(
+      const { output, timedOut, timeoutReason } = await api.aiExecute(
         cli,
         prompt,
         (chunk) => {
@@ -502,6 +504,7 @@ export default function AnnotationPanel({ target, annotations, onToggleStatus, o
       // 先落"发布结果"，再标完成：即使后面标记接口失败，面板上也留着这次发布的结果入口
       finishPublish(batchId, {
         kind: timedOut ? 'timeout' : 'success',
+        timeoutReason,
         message: businessSummary,
         businessSummary,
         diff,
@@ -524,7 +527,9 @@ export default function AnnotationPanel({ target, annotations, onToggleStatus, o
       }
 
       Modal.info({
-        title: timedOut ? `AI 执行超时（${cli} · ${modelLabel}），请人工确认改动是否完整` : `CodeBuddy 已应用修改（${cli} · ${modelLabel}）`,
+        title: timedOut
+          ? `AI 执行已终止（${cli} · ${modelLabel}），请人工确认改动是否完整`
+          : `CodeBuddy 已应用修改（${cli} · ${modelLabel}）`,
         width: 760,
         content: (
           <div>
@@ -547,7 +552,7 @@ export default function AnnotationPanel({ target, annotations, onToggleStatus, o
             </div>
             {timedOut && (
               <Typography.Paragraph type="warning" style={{ marginBottom: 8 }}>
-                本次执行超时被终止，可能只改了一半。请展开下方「技术改动明细」核对 diff 与批注是否已全部落实，未落实的部分建议点「重试」补齐；确认落实后再把对应批注标记为已完成。
+                本次执行被强制结束（{timeoutHint(true, timeoutReason)}），可能只改了一半。请展开下方「技术改动明细」核对 diff 与批注是否已全部落实，未落实的部分建议点「重试」补齐；确认落实后再把对应批注标记为已完成。
               </Typography.Paragraph>
             )}
             {timedOut && (
@@ -590,7 +595,7 @@ export default function AnnotationPanel({ target, annotations, onToggleStatus, o
                       <pre style={DIFF_STYLE}>{diff || '（无代码变更，或项目尚未纳入 Git 版本管理）'}</pre>
                       <div style={{ fontWeight: 600, margin: '12px 0 6px', color: 'var(--ph-text-secondary)' }}>AI 执行日志</div>
                       <pre style={{ ...DIFF_STYLE, background: 'var(--ph-anno-diff-bg)', color: 'var(--ph-anno-diff-color)' }}>
-                        {output + (timedOut ? '\n\n[已超时（10 分钟），进程被终止，可点下方「重试」继续]' : '')}
+                        {output + (timedOut ? `\n\n[${timeoutHint(true, timeoutReason)}，可点下方「重试」继续]` : '')}
                       </pre>
                     </div>
                   ),

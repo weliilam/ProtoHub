@@ -298,8 +298,47 @@ let currentTask: RunningTask | null = null;
 const pendingQueue: QueueEntry[] = [];
 /** 队列长度上限：串行执行，队太长等待无意义，同时也防误操作堆积 */
 const MAX_QUEUE = 5;
-/** 占位兜底回收（ms）：执行超时 10 分钟 + 1 分钟缓冲。极端情况下回调未触发时自动放行，避免队列永久卡死 */
-const TASK_STALE_MS = 660_000;
+
+/** 从环境变量读超时配置（ms）；非法或非正数时回退默认值 */
+function envMs(name: string, fallback: number): number {
+  const raw = Number(process.env[name]);
+  return Number.isFinite(raw) && raw > 0 ? raw : fallback;
+}
+
+/**
+ * 空闲超时（ms）：连续这么久没有收到任何输出（stdout / stderr / 流式事件）即判定卡死并强杀。
+ *
+ * 按"空闲"而非"总时长"判定，是因为真正要防的是进程僵死，而不是任务本身耗时长 ——
+ * 长任务只要持续有输出就应该让它跑完，一刀切的总时长会误杀正常任务。
+ * 可用环境变量 HATCH_AI_IDLE_MS 覆盖（如 180000 = 3 分钟）。
+ */
+const IDLE_TIMEOUT_MS = envMs('HATCH_AI_IDLE_MS', 5 * 60_000);
+
+/**
+ * 单任务总时长上限（ms）：无论是否持续有输出都不会超过。
+ *
+ * 串行执行下必须留这道闸：空闲超时防得住"卡死"，防不住"正常但极慢" ——
+ * 一个跑几小时的任务会把后面所有排队任务堵死。
+ * 可用环境变量 HATCH_AI_MAX_MS 覆盖。
+ */
+const MAX_TOTAL_MS = envMs('HATCH_AI_MAX_MS', 40 * 60_000);
+
+/**
+ * 占位兜底回收（ms）：空闲超时 + 1 分钟缓冲。极端情况下（进程回调未触发）占位一直不释放会导致队列永久卡死。
+ *
+ * 判定依据必须是"最后活跃时间"（lastChunkAt）而不是"开始时间"：正常跑的长任务 lastChunkAt 一直在推进，
+ * 不该被回收；只有真的没动静了才算僵尸。
+ */
+const TASK_STALE_MS = IDLE_TIMEOUT_MS + 60_000;
+
+/**
+ * 正在运行的子进程（taskId → child）。
+ *
+ * 兜底回收（reapStaleTask）命中时必须真正终止进程：只清空槽位引用会让被判"卡死"的 CLI
+ * 继续在后台改文件，而槽位已经放行给下一个任务 —— 两个 CLI 同时改同一个项目。
+ * 这会破坏"同一时刻只有一个 CLI 改代码"这个前提，批量任务基于串行假设的改动统计与回滚都会串。
+ */
+const runningChildren = new Map<string, ChildProcess>();
 
 /** 历史任务耗时（用于估算 ETA），按 cli+model 分组取中位数 */
 const durationHistory: { key: string; ms: number }[] = [];
@@ -416,13 +455,27 @@ function dispatchNextTask() {
   next.grant(true);
 }
 
-/** 兜底回收：极端情况下（进程回调未触发）占位一直不释放会导致队列永久卡死 */
+/**
+ * 兜底回收：极端情况下（进程回调未触发）占位一直不释放会导致队列永久卡死。
+ *
+ * 判定用 lastChunkAt（最后活跃时间）而不是 startedAt：长任务只要还在输出就不该被判定为僵尸。
+ * 命中后必须先真正终止进程、再放行下一个 —— 旧实现在这里只清空引用不杀进程，
+ * 一旦任务能活过阈值（空闲超时改造后必然如此），就会变成"新旧两个 CLI 同时改代码"。
+ */
 function reapStaleTask() {
-  if (currentTask && Date.now() - currentTask.startedAt > TASK_STALE_MS) {
-    currentTask = null;
-    dispatchNextTask();
-  }
+  if (!currentTask) return;
+  if (Date.now() - currentTask.lastChunkAt <= TASK_STALE_MS) return;
+  const id = currentTask.id;
+  const child = runningChildren.get(id);
+  runningChildren.delete(id);
+  if (child) killTree(child);
+  // killTree 的 'close' 回调是异步的，这里直接清位并放行；之后 runCli 的收尾会因 id 不匹配而跳过
+  if (currentTask?.id === id) currentTask = null;
+  dispatchNextTask();
 }
+
+/** 任务被强制结束的原因：idle = 长时间无输出判定卡死；total = 撞到总时长上限 */
+type RunCliTimeoutReason = 'idle' | 'total' | null;
 
 interface RunCliOptions {
   /** true = codebuddy `--output-format stream-json`：stdout 每行一个 NDJSON 事件，需逐行解析 */
@@ -431,10 +484,19 @@ interface RunCliOptions {
   onChunk?: (chunk: string) => void;
   /** 思考过程增量（thinking_delta），用于前端展示"AI 正在思考" */
   onThinking?: (chunk: string) => void;
-  /** 任意一条有效事件（含无文本输出的工具调用）：用于"是否卡住"打点，避免长时间改文件被误判为卡住 */
+  /** 任意一条输出到达时的回调：调用方自己的活跃度处理（打点已在 runCli 内部统一完成） */
   onActivity?: () => void;
   /** 执行失败（如 401 认证失败）：让前端明确看到错误而不是空回复 */
   onError?: (message: string) => void;
+  /**
+   * 所属执行槽位 id：传入后本进程登记到 runningChildren，
+   * 兜底回收（reapStaleTask）命中时才能被真正强杀，而不是留下一个继续改文件的孤儿进程。
+   */
+  taskId?: string;
+  /** 覆盖默认空闲超时（ms）；传 0 关闭空闲判定 */
+  idleTimeoutMs?: number;
+  /** 覆盖默认总时长上限（ms）；传 0 关闭上限 */
+  maxTotalMs?: number;
 }
 
 /**
@@ -473,20 +535,61 @@ function runCli(
   bin: string,
   args: string[],
   prompt: string,
-  timeoutMs: number,
   opts: RunCliOptions = {},
-): { promise: Promise<{ output: string; timedOut: boolean }>; child: ChildProcess } {
+): {
+  promise: Promise<{ output: string; timedOut: boolean; timeoutReason: RunCliTimeoutReason }>;
+  child: ChildProcess;
+} {
   const child = spawn(bin, args, {
     cwd: process.cwd(),
     shell: process.platform === 'win32',
     env: { ...process.env },
   });
+  const idleLimitMs = opts.idleTimeoutMs ?? IDLE_TIMEOUT_MS;
+  const totalLimitMs = opts.maxTotalMs ?? MAX_TOTAL_MS;
   let output = '';
-  let timedOut = false;
-  const timer = setTimeout(() => {
-    timedOut = true;
+  let timeoutReason: RunCliTimeoutReason = null;
+  let finished = false;
+  let idleTimer: NodeJS.Timeout | null = null;
+  let totalTimer: NodeJS.Timeout | null = null;
+
+  const clearTimers = () => {
+    if (idleTimer) clearTimeout(idleTimer);
+    if (totalTimer) clearTimeout(totalTimer);
+    idleTimer = null;
+    totalTimer = null;
+  };
+  /** 强制结束：记录原因并强杀进程树。两种超时只认先到的那个（幂等） */
+  const forceStop = (reason: 'idle' | 'total') => {
+    if (finished || timeoutReason) return;
+    timeoutReason = reason;
     killTree(child);
-  }, timeoutMs);
+  };
+  /** 重置空闲倒计时：每收到一次输出就往后推，只有真的长时间没动静才会触发 */
+  const armIdle = () => {
+    if (finished || idleLimitMs <= 0) return;
+    if (idleTimer) clearTimeout(idleTimer);
+    idleTimer = setTimeout(() => forceStop('idle'), idleLimitMs);
+  };
+  armIdle();
+  if (totalLimitMs > 0) totalTimer = setTimeout(() => forceStop('total'), totalLimitMs);
+
+  /**
+   * 有动静：推后空闲倒计时，并刷新槽位的 lastChunkAt（前端 idleSec 与兜底回收都以此为准）。
+   *
+   * 打点放在最底层 —— stdout/stderr 的原始数据一到就算活跃，不依赖上层能否解析出文本。
+   * 否则非 stream-json 的 CLI 在长时间工具调用期间完全静默（只在最后一次性吐结果），
+   * 会被空闲超时误判成卡死。
+   */
+  const touch = () => {
+    if (finished) return;
+    armIdle();
+    if (opts.taskId) touchTask(opts.taskId);
+    opts.onActivity?.();
+  };
+
+  if (opts.taskId) runningChildren.set(opts.taskId, child);
+
   const pushText = (s: string) => {
     output += s;
     opts.onChunk?.(s);
@@ -507,8 +610,6 @@ function runCli(
       } catch {
         return; // 非 JSON 行（如 CLI 自身 banner），忽略
       }
-      // 任何一条有效事件都算"有动静"：CLI 长时间在改文件时不至于被判定为卡住
-      opts.onActivity?.();
       if (evt.type === 'stream_event') {
         const e = evt.event;
         if (e?.type === 'content_block_delta' && e.delta) {
@@ -534,6 +635,7 @@ function runCli(
       // 其余事件（system / file-history-snapshot / assistant 完整块等）忽略，避免重复输出
     };
     child.stdout?.on('data', (d) => {
+      touch();
       buf += d.toString();
       let idx: number;
       while ((idx = buf.indexOf('\n')) >= 0) {
@@ -542,19 +644,34 @@ function runCli(
       }
     });
   } else {
-    child.stdout?.on('data', (d) => pushText(d.toString()));
+    child.stdout?.on('data', (d) => {
+      touch();
+      pushText(d.toString());
+    });
   }
-  child.stderr?.on('data', (d) => pushText(d.toString()));
-  const promise = new Promise<{ output: string; timedOut: boolean }>((resolve, reject) => {
-    child.on('error', (e) => {
-      clearTimeout(timer);
-      reject(e);
-    });
-    child.on('close', () => {
-      clearTimeout(timer);
-      resolve({ output: output.trim(), timedOut });
-    });
+  child.stderr?.on('data', (d) => {
+    touch();
+    pushText(d.toString());
   });
+  /** 收尾：停表并注销进程登记（taskId 若已被新任务复用则不能误删） */
+  const settle = () => {
+    finished = true;
+    clearTimers();
+    if (opts.taskId && runningChildren.get(opts.taskId) === child) runningChildren.delete(opts.taskId);
+  };
+
+  const promise = new Promise<{ output: string; timedOut: boolean; timeoutReason: RunCliTimeoutReason }>(
+    (resolve, reject) => {
+      child.on('error', (e) => {
+        settle();
+        reject(e);
+      });
+      child.on('close', () => {
+        settle();
+        resolve({ output: output.trim(), timedOut: timeoutReason !== null, timeoutReason });
+      });
+    },
+  );
   child.stdin?.write(prompt);
   child.stdin?.end();
   return { promise, child };
@@ -792,15 +909,15 @@ export function aiCliApiPlugin(): Plugin {
             }
 
             // 用 NDJSON 流式回传执行进度，前端可实时看到 AI 输出
-            const { promise, child: proc } = runCli(bin, args, body.prompt!, 600_000, {
+            // taskId 让进程登记到 runningChildren：兜底回收命中时能被真正强杀，不留继续改文件的孤儿
+            const { promise, child: proc } = runCli(bin, args, body.prompt!, {
+              taskId,
               streamJson: isCodebuddy,
               onChunk: (chunk) => {
-                if (currentTask?.id === taskId) currentTask.lastChunkAt = Date.now();
                 if (clientClosed) return;
                 try { res.write(JSON.stringify({ type: 'chunk', data: chunk }) + '\n'); } catch {}
               },
               onThinking: (chunk) => {
-                if (currentTask?.id === taskId) currentTask.lastChunkAt = Date.now();
                 if (clientClosed) return;
                 try { res.write(JSON.stringify({ type: 'thinking', data: chunk }) + '\n'); } catch {}
               },
@@ -829,9 +946,11 @@ export function aiCliApiPlugin(): Plugin {
             }, 5000);
 
             try {
-              const { output, timedOut } = await promise;
+              const { output, timedOut, timeoutReason } = await promise;
               recordDuration(cli, model, Date.now() - startedAt);
-              if (!clientClosed) res.write(JSON.stringify({ type: 'done', output, timedOut }) + '\n');
+              if (!clientClosed) {
+                res.write(JSON.stringify({ type: 'done', output, timedOut, timeoutReason }) + '\n');
+              }
             } catch (e: any) {
               if (!clientClosed) {
                 try { res.write(JSON.stringify({ type: 'error', error: e.message || 'AI CLI 执行失败' }) + '\n'); } catch {}
@@ -951,5 +1070,18 @@ export function queueFull(): boolean {
   return pendingQueue.length >= MAX_QUEUE;
 }
 
-export { CLI_DEFS, which, checkAuthorized, recordDuration, summarizePrompt, taskSnapshot, killTree, runCli, estimateDurationSec };
+export {
+  CLI_DEFS,
+  which,
+  checkAuthorized,
+  recordDuration,
+  summarizePrompt,
+  taskSnapshot,
+  killTree,
+  runCli,
+  estimateDurationSec,
+  IDLE_TIMEOUT_MS,
+  MAX_TOTAL_MS,
+};
+export type { RunCliTimeoutReason };
 export type { RunCliOptions };

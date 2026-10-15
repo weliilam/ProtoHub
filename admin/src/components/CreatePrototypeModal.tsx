@@ -14,6 +14,7 @@ import {
   type AttachedImage,
 } from '../aiVision';
 import type { AiModelOption, CliStatus, CreateEntryOptions } from '../types';
+import { timeoutHint } from '../aiTimeout';
 
 /**
  * 新建原型弹框：支持两种方式，由用户自行选择——
@@ -296,8 +297,9 @@ export default function CreatePrototypeModal(props: {
         },
       );
       setResult(res.output || '');
-      if (res.timedOut) message.warning('AI 执行超时，原型可能未完成，可再次生成或手动调整');
-      else message.success('AI 已生成原型');
+      if (res.timedOut) {
+        message.warning(`${timeoutHint(res.timedOut, res.timeoutReason)}，原型可能未完成，可再次生成或手动调整`);
+      } else message.success('AI 已生成原型');
     } catch (e: any) {
       // 用户手动停止：不算失败（stopAi 已给出提示）
       if (e?.name === 'AbortError') return;

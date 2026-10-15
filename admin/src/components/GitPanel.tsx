@@ -13,6 +13,7 @@ import { api } from '../api';
 import { getAiModel } from '../aiModelStore';
 import { CompareView } from './CompareView';
 import type { CliStatus, EntryItem, GitLogItem } from '../types';
+import { timeoutHint } from '../aiTimeout';
 
 /** 去掉 AI 输出中残留的 markdown 标记（## / ** / * / `），保持纯文本可读 */
 function stripMarkdown(text: string): string {
@@ -208,7 +209,7 @@ export default function GitPanel({ selected, onRestored }: Props) {
 ${diffObj.diff.slice(0, 8000)}`;
       // 用 streaming 回调实时更新 aiSummaries[hash]，前端逐字可见
       let streaming = '';
-      const { output, timedOut } = await api.aiExecute(
+      const { output, timedOut, timeoutReason } = await api.aiExecute(
         cli,
         prompt,
         (chunk) => {
@@ -223,7 +224,7 @@ ${diffObj.diff.slice(0, 8000)}`;
         getAiModel(), // 固定模型（仅 codebuddy 生效）
       );
       const text = output.trim() || '（AI 未返回说明）';
-      const finalText = timedOut ? `${text}\n\n[提示：AI 执行超时，说明可能不完整]` : text;
+      const finalText = timedOut ? `${text}\n\n[提示：${timeoutHint(timedOut, timeoutReason)}，说明可能不完整]` : text;
       setAiSummaries((prev) => {
         const next = { ...prev, [hash]: finalText };
         saveAiSummaries(next);

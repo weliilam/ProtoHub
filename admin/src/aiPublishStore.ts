@@ -1,4 +1,5 @@
 import { useSyncExternalStore } from 'react';
+import type { AiTimeoutReason } from './aiTimeout';
 
 /**
  * 批注发布任务状态（全局单例，跨面板关闭 / 切换原型存活）。
@@ -46,7 +47,12 @@ export interface PublishOutcome {
   backupHash: string;
   /** 本次发布涉及的批注文案（结果入口里直接展示，不用回查） */
   annotationTexts: string[];
-}
+  /**
+   * 被强制结束的原因（kind === 'timeout' 时有值）：
+   * idle = 长时间无输出判定卡死；total = 撞到总时长上限；undefined = 未超时或早于本次更新的记录
+   */
+  timeoutReason?: AiTimeoutReason;
+  }
 
 export interface PublishBatch {
   id: string;

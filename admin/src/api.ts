@@ -12,6 +12,7 @@ import type {
   PrototypeInfo,
   SourceMatch,
 } from './types';
+import { normalizeTimeoutReason, type AiTimeoutReason } from './aiTimeout';
 
 async function request<T = any>(url: string, options?: RequestInit): Promise<T> {
   const res = await fetch(url, {
@@ -120,7 +121,7 @@ export const api = {
       onQueued?: (info: AiQueueEvent) => void;
       onStart?: (taskId: string) => void;
     },
-  ): Promise<{ output: string; timedOut: boolean }> =>
+  ): Promise<{ output: string; timedOut: boolean; timeoutReason: AiTimeoutReason }> =>
     new Promise((resolve, reject) => {
       fetch('/api/ai/execute', {
         method: 'POST',
@@ -143,7 +144,7 @@ export const api = {
           const reader = res.body!.getReader();
           const decoder = new TextDecoder();
           let buffer = '';
-          let final: { output: string; timedOut: boolean } | null = null;
+          let final: { output: string; timedOut: boolean; timeoutReason: AiTimeoutReason } | null = null;
           while (true) {
             const { done, value } = await reader.read();
             if (value) {
@@ -160,7 +161,12 @@ export const api = {
                   else if (msg.type === 'ping') onPing?.(msg.elapsed);
                   else if (msg.type === 'queued') opts?.onQueued?.(msg as AiQueueEvent);
                   else if (msg.type === 'start') opts?.onStart?.(msg.taskId);
-                  else if (msg.type === 'done') final = { output: msg.output, timedOut: msg.timedOut };
+                  else if (msg.type === 'done')
+                    final = {
+                      output: msg.output,
+                      timedOut: msg.timedOut,
+                      timeoutReason: normalizeTimeoutReason(msg.timeoutReason),
+                    };
                   else if (msg.type === 'error') throw new Error(msg.error);
                 } catch (e: any) {
                   throw new Error(e.message || '解析执行结果失败');
