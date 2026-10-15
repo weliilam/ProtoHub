@@ -21,6 +21,7 @@ dev.stdout.log
 dev.stderr.log
 dev_stdout.log
 dev_stderr.log
+.devserver.log
 # 本地录屏（体积大，不入库）
 /videos/
 # 根目录一次性探索脚本（Playwright 抓取等，不入库）
