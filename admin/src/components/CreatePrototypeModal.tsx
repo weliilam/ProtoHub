@@ -122,6 +122,8 @@ export default function CreatePrototypeModal(props: {
   const [error, setError] = useState('');
   const controllerRef = useRef<AbortController | null>(null);
   const outputRef = useRef<HTMLDivElement>(null);
+  /** 排队提示只弹一次（服务端的 onQueued 每 5s 回调一次） */
+  const queuedNotifiedRef = useRef(false);
 
   const cliOptions = useMemo(
     () =>
@@ -269,6 +271,7 @@ export default function CreatePrototypeModal(props: {
     setStreaming('');
     setElapsed(0);
     aiRunStore.set(true);
+    queuedNotifiedRef.current = false;
     try {
       const res = await api.aiExecute(
         cli,
@@ -278,11 +281,26 @@ export default function CreatePrototypeModal(props: {
         needModelPicker ? model : undefined,
         undefined,
         (sec) => setElapsed(sec),
+        undefined,
+        {
+          target: `src/prototypes/${n}`,
+          // 已有任务在跑时不再"拒绝"，而是排队；首次排队时给用户一个明确提示
+          onQueued: (info) => {
+            if (queuedNotifiedRef.current) return;
+            queuedNotifiedRef.current = true;
+            setError('');
+            message.info(
+              `已有 AI 任务在执行，本次生成已排队（前面还有 ${Math.max(0, info.position - 1)} 个），会自动开始`,
+            );
+          },
+        },
       );
       setResult(res.output || '');
       if (res.timedOut) message.warning('AI 执行超时，原型可能未完成，可再次生成或手动调整');
       else message.success('AI 已生成原型');
     } catch (e: any) {
+      // 用户手动停止：不算失败（stopAi 已给出提示）
+      if (e?.name === 'AbortError') return;
       setError(e?.message || 'AI 执行失败');
     } finally {
       setRunning(false);

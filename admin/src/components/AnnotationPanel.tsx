@@ -1,9 +1,26 @@
-import { Button, Checkbox, Collapse, Empty, Modal, Popconfirm, Space, Tag, Typography, message } from 'antd';
-import { CheckOutlined, CopyOutlined, DeleteOutlined, LoadingOutlined, ReloadOutlined, ThunderboltOutlined, UndoOutlined } from '@ant-design/icons';
+import { Button, Checkbox, Collapse, Empty, Modal, Popconfirm, Space, Tag, Tooltip, Typography, message } from 'antd';
+import { CheckOutlined, CloseOutlined, CopyOutlined, DeleteOutlined, LoadingOutlined, ReloadOutlined, ThunderboltOutlined, UndoOutlined } from '@ant-design/icons';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { api } from '../api';
 import { aiRunStore } from '../aiRunStore';
 import { getAiModel, getAiModelLabel } from '../aiModelStore';
+import { useAiServerTask } from '../aiServerTask';
+import {
+  PUBLISH_STAGES,
+  appendPublishChunk,
+  appendPublishThinking,
+  deriveStage,
+  dismissPublish,
+  finishPublish,
+  markPublishQueued,
+  markPublishStarted,
+  setPublishMeta,
+  stageLabel,
+  startPublish,
+  usePublishBatches,
+  type PublishOutcome,
+  type PublishStage,
+} from '../aiPublishStore';
 import { annotationPaneLabel } from '../annotation';
 import type { Annotation, CliStatus } from '../types';
 
@@ -29,8 +46,10 @@ interface Props {
   onToggleStatus: (a: Annotation) => Promise<void>;
   onDelete: (a: Annotation) => Promise<void>;
   onApplied?: () => void;
-  /** 发布成功后把已勾选批注标记为已完成（让页面标记变绿），并记录使用的 AI 模型 */
-  onMarkDone?: (ids: string[], resolvedBy?: string) => Promise<void>;
+  /** 发布成功后把已勾选批注标记为已完成（让页面标记变绿），并记录使用的 AI 模型；target 为发布时的原型名 */
+  onMarkDone?: (ids: string[], resolvedBy?: string, target?: string) => Promise<void>;
+  /** 服务端上本原型的发布任务结束（可能是其它标签页发起）→ 重新拉取批注状态 */
+  onReload?: (target: string) => Promise<void> | void;
   /** 元素已不存在的失效批注 */
   missingAnnotations?: Annotation[];
   /** 元素仍在但当前视图不可见的批注（在其他页签 / 未打开的弹窗） */
@@ -105,58 +124,100 @@ const DIFF_STYLE: React.CSSProperties = {
   fontFamily: 'monospace',
 };
 
-export default function AnnotationPanel({ target, annotations, onToggleStatus, onDelete, onApplied, onMarkDone, missingAnnotations = [], hiddenAnnotations = [], onDeleteMissing, canUndo, onUndo }: Props) {
-  const [publishing, setPublishing] = useState(false);
-  const [liveOutput, setLiveOutput] = useState('');
-  const [liveThinking, setLiveThinking] = useState('');
-  const [elapsed, setElapsed] = useState(0);
-  const publishTimerRef = useRef<ReturnType<typeof setInterval>>();
+export default function AnnotationPanel({ target, annotations, onToggleStatus, onDelete, onApplied, onMarkDone, onReload, missingAnnotations = [], hiddenAnnotations = [], onDeleteMissing, canUndo, onUndo }: Props) {
+  /** 发布状态在全局 store 里（跨面板关闭/切换原型存活），这里只订阅渲染 */
+  const batches = usePublishBatches();
+  const serverTask = useAiServerTask();
+  /** 排队提示只弹一次（服务端的 onQueued 每 5s 回调一次） */
+  const queuedNotifiedRef = useRef(false);
+  /**
+   * 发布进行中的同步闸门：必须在任何 await 之前置位。
+   * 因为发布要先备份快照 + 探测 CLI 才登记批次，这段准备期 store 里还是空的，
+   * 按钮的 loading / disabled 都来不及生效，用户连点两下就会重复发起。
+   */
+  const publishBusyRef = useRef(false);
+  /** 上一轮服务端任务：用于识别"本原型的发布刚跑完"（可能是别的标签页发起的） */
+  const prevServerTaskRef = useRef<typeof serverTask | null>(null);
 
-  // 发布耗时计时
+  /** 本页发起的、针对本原型的发布（进行中 / 最近结束） */
+  const myActiveBatches = useMemo(() => batches.filter((b) => b.target === target && !b.outcome), [batches, target]);
+  const myDoneBatches = useMemo(
+    () => batches.filter((b) => b.target === target && b.outcome).slice(0, 2),
+    [batches, target],
+  );
+  /** 服务端正在跑的本页面发布（可能是其它标签页发起的） */
+  const serverIds = useMemo(() => {
+    const t = serverTask.task;
+    if (!t?.annotationIds?.length) return [] as string[];
+    const name = (t.target || '').replace(/\/+$/, '').split('/').pop() || '';
+    return name === target ? t.annotationIds : [];
+  }, [serverTask, target]);
+  /** 正在发布中的批注 id：这些不再算"待处理"，也不能被再次勾选发布 */
+  const publishingIds = useMemo(
+    () => new Set<string>([...myActiveBatches.flatMap((b) => b.annotationIds), ...serverIds]),
+    [myActiveBatches, serverIds],
+  );
+  const publishing = myActiveBatches.length > 0 || serverIds.length > 0;
+  // 自动勾选的 effect 里要读最新的"发布中"集合，用 ref 兜住，避免把它加进依赖反复重跑
+  const publishingIdsRef = useRef(publishingIds);
+  publishingIdsRef.current = publishingIds;
+
+  // 发布耗时计时（发布中才需要每秒重渲染）
+  const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
-    if (publishing) {
-      setElapsed(0);
-      publishTimerRef.current = setInterval(() => setElapsed((e) => e + 1), 1000);
-    } else {
-      clearInterval(publishTimerRef.current);
-    }
-    return () => clearInterval(publishTimerRef.current);
+    if (!publishing) return;
+    const t = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(t);
   }, [publishing]);
 
-  // 根据 AI 实时输出推导当前所处阶段
-  const publishStage = useMemo(() => {
-    if (!publishing) return '';
-    if (!liveOutput && !liveThinking) return 'connecting';
-    if (liveThinking && !liveOutput) return 'thinking';
-    if (liveOutput.includes('===业务变更说明===')) return 'summary';
-    if (/replace_in_file|write_to_file|edit_file/.test(liveOutput)) return 'writing';
-    if (/read_file|Read|reading|查看文件/.test(liveOutput)) return 'reading';
-    return liveOutput ? 'analyzing' : 'thinking';
-  }, [publishing, liveOutput, liveThinking]);
-
-  const STAGES: { key: string; label: string }[] = [
-    { key: 'connecting', label: '连接AI' },
-    { key: 'thinking', label: '思考中' },
-    { key: 'reading', label: '读源码' },
-    { key: 'writing', label: '改文件' },
-    { key: 'summary', label: '生成说明' },
-  ];
-
-  const activeIdx = STAGES.findIndex((s) => s.key === publishStage);
+  const activeBatch = myActiveBatches[0];
+  const liveOutput = activeBatch?.output ?? '';
+  const liveThinking = activeBatch?.thinking ?? '';
+  // 本页发起的发布能推导到"改文件/生成说明"等阶段；其它标签页发起的只有服务端进度
+  const publishStage = activeBatch
+    ? activeBatch.stage ?? deriveStage(activeBatch.output, activeBatch.thinking)
+    : serverIds.length > 0
+      ? 'analyzing'
+      : '';
+  const activeIdx = PUBLISH_STAGES.findIndex((s) => s.key === publishStage);
+  const publishElapsed = activeBatch ? Math.max(0, Math.floor((now - activeBatch.startedAt) / 1000)) : serverTask.task?.elapsedSec ?? 0;
+  const queuePosition = activeBatch?.queuePosition ?? 0;
   const fmtTime = (s: number) => `${Math.floor(s / 60)} 分 ${s % 60} 秒`;
+
   // 待发布批注的勾选集合（仅针对 open 批注）
   const [selected, setSelected] = useState<Set<string>>(
     () => new Set(annotations.filter((a) => a.status === 'open').map((a) => a.id)),
   );
 
   const openAnnotations = useMemo(() => annotations.filter((a) => a.status === 'open'), [annotations]);
+  /** 可勾选（可发布）的批注：正在发布中的那批要排除，否则会造成同一批批注重复发布 */
+  const selectableOpen = useMemo(
+    () => openAnnotations.filter((a) => !publishingIds.has(a.id)),
+    [openAnnotations, publishingIds],
+  );
   // 列表按创建时间降序，最新的批注排在最上面
   const sortedAnnotations = useMemo(
     () => [...annotations].sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || '')),
     [annotations],
   );
-  const selectedOpen = useMemo(() => openAnnotations.filter((a) => selected.has(a.id)), [openAnnotations, selected]);
-  const allSelected = openAnnotations.length > 0 && selectedOpen.length === openAnnotations.length;
+  const selectedOpen = useMemo(() => selectableOpen.filter((a) => selected.has(a.id)), [selectableOpen, selected]);
+  const allSelected = selectableOpen.length > 0 && selectedOpen.length === selectableOpen.length;
+
+  /** 上一次发布失败/超时且这批批注仍待处理的：列表里标出来并给"重试"入口 */
+  const lastOutcomeBatch = myDoneBatches[0];
+  const failedIds = useMemo(() => {
+    const b = lastOutcomeBatch;
+    if (!b?.outcome || b.outcome.kind === 'success') return new Set<string>();
+    // 超时/失败的批注若已被后续发布成功（不再是 open），就不再标红
+    return new Set(b.annotationIds.filter((id) => openAnnotations.some((a) => a.id === id)));
+  }, [lastOutcomeBatch, openAnnotations]);
+  /** 刚被本次发布改动的批注（10 分钟内）：列表里高亮，方便逐条核对 */
+  const justChangedIds = useMemo(() => {
+    const b = lastOutcomeBatch;
+    if (!b?.outcome || b.outcome.kind !== 'success' || !b.finishedAt) return new Set<string>();
+    if (Date.now() - b.finishedAt > 10 * 60 * 1000) return new Set<string>();
+    return new Set(b.annotationIds);
+  }, [lastOutcomeBatch, now]);
 
   // 跟踪上一次批注列表的 ID 集合，避免重置用户手动取消的勾选
   const prevAnnIdsRef = useRef<Set<string>>(new Set());
@@ -168,8 +229,9 @@ export default function AnnotationPanel({ target, annotations, onToggleStatus, o
     setSelected((prev) => {
       const next = new Set(prev);
       // 新增的 open 批注自动勾选；已有的保留用户选择（不管是勾上还是取消）
+      // 正在发布中的批注不自动勾选（它们已经提交给 AI 了，勾着会让人误以为还能再发一次）
       annotations
-        .filter((a) => a.status === 'open' && !prevIds.has(a.id))
+        .filter((a) => a.status === 'open' && !prevIds.has(a.id) && !publishingIdsRef.current.has(a.id))
         .forEach((a) => next.add(a.id));
       // 移除已经不存在的批注 ID（被删除了）
       prev.forEach((id) => {
@@ -180,6 +242,21 @@ export default function AnnotationPanel({ target, annotations, onToggleStatus, o
 
     prevAnnIdsRef.current = currentIds;
   }, [annotations]);
+
+  // 服务端上本原型的发布任务结束了（比如说：别的标签页发布完、本页刷新前发起的任务收尾）
+  // → 重新拉一次批注，让"发布中"标记自动消失、已完成状态自动补上
+  useEffect(() => {
+    const prev = prevServerTaskRef.current;
+    prevServerTaskRef.current = serverTask;
+    const prevTask = prev?.task;
+    if (!prevTask?.annotationIds?.length) return;
+    const prevTarget = (prevTask.target || '').replace(/\/+$/, '').split('/').pop() || '';
+    if (prevTarget !== target) return;
+    const cur = serverTask.task;
+    // 同一个任务还在跑就不动；换成别的任务/已结束 → 说明这一批发布了结
+    if (cur && cur.id === prevTask.id) return;
+    void onReload?.(target);
+  }, [serverTask, target, onReload]);
 
   const toggleSelect = (id: string, checked: boolean) => {
     setSelected((prev) => {
@@ -206,10 +283,98 @@ export default function AnnotationPanel({ target, annotations, onToggleStatus, o
     }
   };
 
-  /** 重新执行本次发布（用于失败/超时后一键重试） */
-  const retry = () => {
+  /** 本次发布的批注列表：重试/查看结果时要复原这一批，不能依赖"当前勾选" */
+  const lastPublishedRef = useRef<Annotation[]>([]);
+
+  /** 按 id 找回这批批注（可能已被标为 done，所以不能只从 openAnnotations 里找） */
+  const listByIds = (ids: string[]) => annotations.filter((a) => ids.includes(a.id));
+
+  /** 重新发布某一批批注（失败/超时后的一键重试）；不传则重发上一次那批 */
+  const retry = (ids?: string[] | unknown) => {
     Modal.destroyAll();
-    publishToCodeBuddy();
+    const list = Array.isArray(ids) ? listByIds(ids as string[]) : lastPublishedRef.current;
+    if (list.length === 0) {
+      // 兜底：如果历史批次找不到了（例如刷新过页面），退回当前勾选
+      void publishToCodeBuddy();
+      return;
+    }
+    void publishToCodeBuddy(list);
+  };
+
+  /** 打开"上次发布结果"详情：业务说明 + diff + 日志 + 还原/重试入口 */
+  const showStoredOutcome = (o: PublishOutcome, ids: string[]) => {
+    const timedOut = o.kind === 'timeout';
+    const failed = o.kind === 'error';
+    Modal.info({
+      title: failed
+        ? `发布失败（${o.cli}）`
+        : timedOut
+          ? `AI 执行超时（${o.cli} · ${o.model}），请人工确认改动是否完整`
+          : `CodeBuddy 已应用修改（${o.cli} · ${o.model}）`,
+      width: 760,
+      content: (
+        <div>
+          <div
+            style={{
+              background: 'var(--ph-anno-highlight-bg)',
+              border: '1px solid var(--ph-anno-highlight-border)',
+              borderRadius: 8,
+              padding: '12px 14px',
+              marginBottom: 12,
+            }}
+          >
+            <div style={{ fontWeight: 600, marginBottom: 6, color: 'var(--ph-anno-title-color)' }}>
+              📋 本次原型改动说明（给产品 / 业务同学）
+            </div>
+            <Typography.Paragraph style={{ marginBottom: 0, whiteSpace: 'pre-wrap', fontSize: 13 }}>
+              {o.message}
+            </Typography.Paragraph>
+          </div>
+          {timedOut && (
+            <Typography.Paragraph type="warning" style={{ marginBottom: 8 }}>
+              本次执行超时被终止，可能只改了一半。请展开下方「技术改动明细」核对 diff 与批注是否已全部落实，未落实的部分建议点「重试」补齐。
+            </Typography.Paragraph>
+          )}
+          <Space style={{ marginBottom: 12 }}>
+            {!failed && (
+              <Button type="primary" icon={<ReloadOutlined />} onClick={() => retry(ids)}>
+                再发一次
+              </Button>
+            )}
+            {failed && (
+              <Button type="primary" icon={<ReloadOutlined />} onClick={() => retry(ids)}>
+                重试
+              </Button>
+            )}
+            {o.backupHash && (
+              <Button danger icon={<UndoOutlined />} onClick={() => restoreBackup(o.backupHash)}>
+                还原到发布前
+              </Button>
+            )}
+          </Space>
+          <Collapse
+            ghost
+            size="small"
+            items={[
+              {
+                key: 'detail',
+                label: <span style={{ color: 'var(--ph-text-secondary)', fontSize: 13 }}>技术改动明细（开发参考，点击展开）</span>,
+                children: (
+                  <div>
+                    <div style={{ fontWeight: 600, marginBottom: 6, color: 'var(--ph-text-secondary)' }}>代码改动（git diff）</div>
+                    <pre style={DIFF_STYLE}>{o.diff || '（无代码变更，或项目尚未纳入 Git 版本管理）'}</pre>
+                    <div style={{ fontWeight: 600, margin: '12px 0 6px', color: 'var(--ph-text-secondary)' }}>AI 执行日志</div>
+                    <pre style={{ ...DIFF_STYLE, background: 'var(--ph-anno-diff-bg)', color: 'var(--ph-anno-diff-color)' }}>
+                      {o.output || '（无日志）'}
+                    </pre>
+                  </div>
+                ),
+              },
+            ]}
+          />
+        </div>
+      ),
+    });
   };
 
   /** 还原到发布前的自动快照（AI 改错后兜底） */
@@ -224,47 +389,102 @@ export default function AnnotationPanel({ target, annotations, onToggleStatus, o
     }
   };
 
-  /** 一键把勾选的批注发布给 AI CLI，直接改写原型文件 */
-  const publishToCodeBuddy = async () => {
-    if (selectedOpen.length === 0) {
+  /**
+   * 一键把批注发布给 AI CLI，直接改写原型文件。
+   * 发布状态写在全局 store 里：关闭右侧面板（组件卸载）不影响执行，重开面板能看到进度，
+   * 完成后状态与结果也不丢，避免"发布完又变回待发布"的错觉。
+   */
+  const publishToCodeBuddy = async (preset?: Annotation[] | unknown) => {
+    const list = Array.isArray(preset) ? (preset as Annotation[]) : selectedOpen;
+    if (list.length === 0) {
       message.warning('请先勾选要发布的批注');
       return;
     }
-    setPublishing(true);
-    setLiveOutput('');
-    setLiveThinking('');
+    // 同步闸门放在所有 await 之前：准备期（备份 + 探测 CLI）界面还没有进行态，
+    // 快速双击会连发两次（第二次要么重复改代码，要么被服务端 409 拒掉）。
+    if (publishBusyRef.current || publishing) {
+      message.info('已有批注正在发布中，请等它结束后再发布剩余的');
+      return;
+    }
+    publishBusyRef.current = true;
     aiRunStore.set(true);
+    queuedNotifiedRef.current = false;
+    const appliedIds = list.map((a) => a.id);
+    const publishedAt = Date.now();
+    // 关键：在点击的这一刻就把批次登记进 store，让按钮立刻 loading、进度区立刻出现；
+    // 否则"备份快照 + 探测 CLI"这段（可能是几百毫秒到几秒）界面毫无反应，用户会以为没点上。
+    // cli / modelLabel 先留空，准备完成后补写。
+    const batchId = startPublish({
+      target,
+      cli: '',
+      modelLabel: '',
+      annotationIds: appliedIds,
+      annotationTexts: list.map((a) => a.text),
+    });
+    lastPublishedRef.current = list;
+    // 发布后立刻取消这几条的勾选，避免用户以为还能再发一次
+    setSelected((prev) => {
+      const next = new Set(prev);
+      appliedIds.forEach((id) => next.delete(id));
+      return next;
+    });
+    // 批次已同步登记，后续重复点击由 store 的 publishing 状态拦截，闸门可以放开了
+    publishBusyRef.current = false;
     // 兜底保险用的快照 hash：AI 改动前拍快照，改错后可一键还原（提升到函数级，失败弹窗也能用）
     let backupHash = '';
+    // 这几个变量在 catch 里也要用（失败时同样要落一条发布结果），所以提到 try 外面
+    let cli = '';
+    let modelLabel = '';
     try {
-      // ── 兜底保险：AI 改动前先对该原型目录拍一份快照，改错后可一键还原 ──
-      backupHash = (await api.gitSnapshot(`批注发布前自动备份：${target}`, `src/prototypes/${target}`)).hash;
-    } catch {
-      /* 无 Git / 该原型没有变更时跳过自动备份，不影响发布 */
-    }
-    try {
-      const status = (await api.aiStatus()).clis;
-      const available = Object.entries(status)
+      // ── 准备阶段：拍快照 + 探测可用 CLI，两者互不依赖，并行跑以缩短这段"空窗期" ──
+      const [snap, aiStatus] = await Promise.all([
+        // 无 Git / 该原型没有变更时跳过自动备份，不影响发布
+        api.gitSnapshot(`批注发布前自动备份：${target}`, `src/prototypes/${target}`).catch(() => null),
+        api.aiStatus(),
+      ]);
+      backupHash = snap?.hash ?? '';
+      const available = Object.entries(aiStatus.clis)
         .filter(([, v]) => v.available)
         .map(([k]) => k);
-      const cli = available.includes('codebuddy') ? 'codebuddy' : available[0];
+      cli = available.includes('codebuddy') ? 'codebuddy' : available[0] || '';
       if (!cli) {
+        // 没发出去：撤掉批次，并把勾选还给用户，免得白勾一遍
+        dismissPublish(batchId);
+        setSelected((prev) => new Set([...prev, ...appliedIds]));
         message.error('未检测到可用的 AI CLI（CodeBuddy / Claude / Cursor 等），请先安装后再发布');
         return;
       }
-      const prompt = buildAiPrompt(target, selectedOpen);
+      // 记录本次实际生效的模型（仅 codebuddy 支持 --model，其它 CLI 用各自默认模型）
+      modelLabel = cli === 'codebuddy' ? (getAiModel() ? getAiModelLabel() : 'CLI 默认') : `CLI 默认（${cli}）`;
+      // 准备结束：补上 CLI/模型信息，并把阶段交还给实时输出推导
+      setPublishMeta(batchId, { cli, modelLabel, stage: null });
+      const prompt = buildAiPrompt(target, list);
       const { output, timedOut } = await api.aiExecute(
         cli,
         prompt,
         (chunk) => {
-          setLiveOutput((prev) => prev + chunk);
+          appendPublishChunk(batchId, chunk);
         },
         undefined,
         getAiModel(), // 固定模型（仅 codebuddy 生效）
         undefined,
         undefined,
         (thinking) => {
-          setLiveThinking((prev) => prev + thinking);
+          appendPublishThinking(batchId, thinking);
+        },
+        {
+          target: `src/prototypes/${target}`,
+          annotationIds: appliedIds,
+          // 已有任务在跑时不再"拒绝"，而是排队；首次排队时给用户一个明确提示
+          onQueued: (info) => {
+            markPublishQueued(batchId, info.position);
+            if (queuedNotifiedRef.current) return;
+            queuedNotifiedRef.current = true;
+            message.info(
+              `已有 AI 任务在执行，本次发布已排队（前面还有 ${Math.max(0, info.position - 1)} 个），会自动开始`,
+            );
+          },
+          onStart: () => markPublishStarted(batchId),
         },
       );
 
@@ -277,15 +497,27 @@ export default function AnnotationPanel({ target, annotations, onToggleStatus, o
         /* 未初始化 Git 时无法取 diff */
       }
 
-      // 超时 = AI 可能被中途杀掉，存在半截改动。不自动标完成，交给用户人工确认。
-      const appliedIds = selectedOpen.map((a) => a.id);
-      // 记录本次实际生效的模型（仅 codebuddy 支持 --model，其它 CLI 用各自默认模型）
-      const modelLabel = cli === 'codebuddy' ? (getAiModel() ? getAiModelLabel() : 'CLI 默认') : `CLI 默认（${cli}）`;
       // 优先用 AI 产出的业务说明；缺失时回退到批注清单
-      const businessSummary = extractBusinessSummary(output) || buildBusinessFallback(selectedOpen);
+      const businessSummary = extractBusinessSummary(output) || buildBusinessFallback(list);
+      // 先落"发布结果"，再标完成：即使后面标记接口失败，面板上也留着这次发布的结果入口
+      finishPublish(batchId, {
+        kind: timedOut ? 'timeout' : 'success',
+        message: businessSummary,
+        businessSummary,
+        diff,
+        output,
+        cli,
+        model: modelLabel,
+        elapsedSec: Math.round((Date.now() - publishedAt) / 1000),
+        backupHash,
+        annotationTexts: list.map((a) => a.text),
+      });
+      // 超时 = AI 可能被中途杀掉，存在半截改动。不自动标完成，交给用户人工确认。
       if (!timedOut && onMarkDone && appliedIds.length > 0) {
         try {
-          await onMarkDone(appliedIds, modelLabel);
+          // 必须带上 target：发布期间用户可能已切到别的原型或关掉面板，
+          // 不能再拿"当前选中"去刷新列表（否则会把别的原型的批注灌进面板）
+          await onMarkDone(appliedIds, modelLabel, target);
         } catch {
           /* 标记失败不影响已完成的代码改动 */
         }
@@ -371,6 +603,20 @@ export default function AnnotationPanel({ target, annotations, onToggleStatus, o
       message.success({ content: `已通过 ${cli} 应用批注，请刷新预览查看效果`, key: 'publish' });
       onApplied?.();
     } catch (e: any) {
+      // 失败也要落一条结果：面板上会留下"这批批注发布失败 + 一键重试"，
+      // 而不是让它们静默回到"待处理"
+      if (batchId) finishPublish(batchId, {
+        kind: 'error',
+        message: e?.message || '发布失败',
+        businessSummary: '',
+        diff: '',
+        output: '',
+        cli,
+        model: modelLabel,
+        elapsedSec: Math.round((Date.now() - publishedAt) / 1000),
+        backupHash,
+        annotationTexts: list.map((a) => a.text),
+      });
       Modal.error({
         title: '发布失败',
         width: 520,
@@ -422,7 +668,8 @@ export default function AnnotationPanel({ target, annotations, onToggleStatus, o
         ),
       });
     } finally {
-      setPublishing(false);
+      // 双保险：准备期异常时也要把闸门放开，否则发布按钮会永久失效
+      publishBusyRef.current = false;
       aiRunStore.set(false);
     }
   };
@@ -431,7 +678,8 @@ export default function AnnotationPanel({ target, annotations, onToggleStatus, o
     <>
       <div className="ph-right-panel-header">
         <span>
-          批注（{openAnnotations.length} 待处理 / 已选 {selectedOpen.length}）
+          批注（{selectableOpen.length} 待处理
+          {publishingIds.size > 0 && ` / ${publishingIds.size} 发布中`} / 已选 {selectedOpen.length}）
         </span>
       </div>
       <div className="ph-right-panel-body">
@@ -461,18 +709,66 @@ export default function AnnotationPanel({ target, annotations, onToggleStatus, o
             >
               复制 AI 指令
             </Button>
-            <Button
-              size="small"
-              type="primary"
-              icon={<ThunderboltOutlined />}
-              loading={publishing}
-              disabled={selectedOpen.length === 0}
-              onClick={publishToCodeBuddy}
+            <Tooltip
+              title={
+                publishing
+                  ? `本页 ${publishingIds.size} 条批注正在发布中，完成后可继续发布剩余的`
+                  : selectedOpen.length === 0
+                    ? '请先勾选要发布的批注'
+                    : '把勾选的批注直接交给 AI 改代码'
+              }
             >
-              发布
-            </Button>
+              <Button
+                size="small"
+                type="primary"
+                icon={<ThunderboltOutlined />}
+                loading={myActiveBatches.length > 0}
+                disabled={selectedOpen.length === 0 || publishing}
+                onClick={publishToCodeBuddy}
+              >
+                发布{selectedOpen.length > 0 ? `（${selectedOpen.length}）` : ''}
+              </Button>
+            </Tooltip>
           </div>
         </div>
+        {/* 上次发布结果：常驻入口，避免"发过了但看不到结果" */}
+        {myDoneBatches.map((b) => {
+          const o = b.outcome!;
+          const ok = o.kind === 'success';
+          const timeout = o.kind === 'timeout';
+          return (
+            <div
+              key={b.id}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8,
+                marginBottom: 12,
+                padding: '8px 10px',
+                borderRadius: 8,
+                border: `1px dashed var(--ph-anno-${ok ? 'highlight' : 'warn'}-border)`,
+                background: `var(--ph-anno-${ok ? 'highlight' : 'warn'}-bg)`,
+              }}
+            >
+              <span style={{ fontSize: 12, color: 'var(--ph-anno-section-title)' }}>
+                {ok ? '✅' : timeout ? '⚠️' : '❌'} 上次发布
+                {ok ? '已完成' : timeout ? '超时（请人工确认）' : '失败'}：{b.annotationIds.length} 条批注 · {o.cli} ·{' '}
+                {fmtTime(o.elapsedSec || 0)}
+              </span>
+              <span style={{ marginLeft: 'auto', display: 'flex', gap: 6 }}>
+                <Button size="small" onClick={() => showStoredOutcome(o, b.annotationIds)}>
+                  查看改动说明
+                </Button>
+                {!ok && (
+                  <Button size="small" type="primary" icon={<ReloadOutlined />} onClick={() => retry(b.annotationIds)}>
+                    重试
+                  </Button>
+                )}
+                <Button size="small" type="text" icon={<CloseOutlined />} onClick={() => dismissPublish(b.id)} />
+              </span>
+            </div>
+          );
+        })}
         {hiddenAnnotations.length > 0 && (
           <div
             style={{
@@ -547,8 +843,8 @@ export default function AnnotationPanel({ target, annotations, onToggleStatus, o
             }}
           >
             {/* 阶段进度条 */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 10 }}>
-              {STAGES.map((stg, i) => {
+            <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 4, rowGap: 6, marginBottom: 10 }}>
+              {PUBLISH_STAGES.map((stg, i) => {
                 const done = activeIdx > i;
                 const current = activeIdx === i;
                 return (
@@ -577,7 +873,7 @@ export default function AnnotationPanel({ target, annotations, onToggleStatus, o
                         {stg.label}
                       </span>
                     </div>
-                    {i < STAGES.length - 1 && (
+                    {i < PUBLISH_STAGES.length - 1 && (
                       <div
                         style={{
                           flex: 'none',
@@ -595,11 +891,22 @@ export default function AnnotationPanel({ target, annotations, onToggleStatus, o
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
               <LoadingOutlined style={{ fontSize: 18, color: 'var(--ph-primary-color)' }} spin />
               <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--ph-primary-color)' }}>
-                {STAGES[Math.max(0, activeIdx)]?.label || '处理中'}…
+                {queuePosition > 0
+                  ? `排队中（前面还有 ${Math.max(0, queuePosition - 1)} 个任务）`
+                  : publishStage === 'preparing'
+                    ? '正在备份原型、检查 AI 环境…'
+                    : `${stageLabel((publishStage || 'connecting') as PublishStage)}…`}
               </span>
               <span style={{ fontSize: 11, color: 'var(--ph-text-secondary)', marginLeft: 'auto' }}>
-                已耗时 {fmtTime(elapsed)}
+                已耗时 {fmtTime(publishElapsed)}
               </span>
+            </div>
+            {/* 正在发布的是哪些批注 + 关掉面板也不会中断 */}
+            <div style={{ fontSize: 11, color: 'var(--ph-text-secondary)', marginBottom: 10, lineHeight: 1.7 }}>
+              本次发布 {publishingIds.size} 条批注
+              {activeBatch && activeBatch.annotationTexts.length > 0 ? `：${activeBatch.annotationTexts.join('；')}` : ''}。
+              可以关闭本面板，发布会在后台继续，完成后自动标记为「已完成」。
+              {!activeBatch && '（这条发布由其它标签页发起，此处只显示服务端进度）'}
             </div>
             {/* 实时输出 */}
             {liveThinking && !liveOutput && (
@@ -648,18 +955,26 @@ export default function AnnotationPanel({ target, annotations, onToggleStatus, o
           <Space direction="vertical" style={{ width: '100%' }} size="middle">
             {sortedAnnotations.map((a, idx) => (
               <div key={a.id} style={{ border: '1px solid var(--ph-anno-card-border)', borderRadius: 8, padding: 10 }}>
-                <Space style={{ marginBottom: 6 }}>
-                  {a.status === 'open' && (
+                <Space style={{ marginBottom: 6 }} wrap>
+                  {a.status === 'open' && !publishingIds.has(a.id) && (
                     <Checkbox
-                      size="small"
                       checked={selected.has(a.id)}
                       onChange={(e) => toggleSelect(a.id, e.target.checked)}
                     />
                   )}
                   <Tag color={a.status === 'open' ? 'blue' : 'green'}>#{idx + 1}</Tag>
-                  <Tag color={a.status === 'open' ? 'red' : a.status === 'resolved' ? 'blue' : 'green'}>
-                    {a.status === 'open' ? '待处理' : a.status === 'resolved' ? '已解决' : '已完成'}
-                  </Tag>
+                  {/* 已提交给 AI、还没跑完的批注：单列"发布中"，不要再显示成"待处理" */}
+                  {publishingIds.has(a.id) ? (
+                    <Tag color="orange" icon={<LoadingOutlined spin />}>
+                      发布中
+                    </Tag>
+                  ) : (
+                    <Tag color={a.status === 'open' ? 'red' : a.status === 'resolved' ? 'blue' : 'green'}>
+                      {a.status === 'open' ? '待处理' : a.status === 'resolved' ? '已解决' : '已完成'}
+                    </Tag>
+                  )}
+                  {failedIds.has(a.id) && <Tag color="volcano">上次发布未完成，可重试</Tag>}
+                  {justChangedIds.has(a.id) && <Tag color="green">本次已改</Tag>}
                   {a.status !== 'open' && a.resolvedBy && (
                     <Tag color="cyan">由 {a.resolvedBy} 修改</Tag>
                   )}
@@ -681,6 +996,7 @@ export default function AnnotationPanel({ target, annotations, onToggleStatus, o
                       size="small"
                       type="text"
                       icon={a.status === 'open' ? <CheckOutlined /> : <UndoOutlined />}
+                      disabled={publishingIds.has(a.id)}
                       onClick={() => onToggleStatus(a)}
                     >
                       {a.status === 'open' ? '完成' : '重开'}

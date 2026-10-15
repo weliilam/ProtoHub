@@ -5,6 +5,7 @@ import { themesApiPlugin } from './themesApi';
 import { dataApiPlugin } from './dataApi';
 import { gitApiPlugin } from './gitApi';
 import { aiCliApiPlugin } from './aiCliApi';
+import { aiBatchApiPlugin } from './aiBatchApi';
 import { annotationApiPlugin } from './annotationApi';
 import { prototypeIndexApiPlugin } from './prototypeIndexApi';
 import { prdApiPlugin } from './prdApi';
@@ -22,6 +23,7 @@ export function serverPlugins(): Plugin[] {
     gitApiPlugin(),
     comparePlugin(),
     aiCliApiPlugin(),
+    aiBatchApiPlugin(),
     annotationApiPlugin(),
     prototypeIndexApiPlugin(),
     prdApiPlugin(),

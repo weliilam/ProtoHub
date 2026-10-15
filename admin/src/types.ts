@@ -98,6 +98,65 @@ export interface AiStatus {
   models: AiModelOption[];
 }
 
+/** 排队中的 AI 任务（服务端 FIFO 队列里的一个等待项） */
+export interface AiQueueItem {
+  id: string;
+  cli: string;
+  label: string;
+  model: string | null;
+  /** 操作目标（如 src/prototypes/xxx/） */
+  target: string;
+  /** 指令摘要（prompt 前 60 字） */
+  summary: string;
+  enqueuedAt: number;
+  waitedSec: number;
+  /** 1 = 队首（下一个执行） */
+  position: number;
+  /** 该任务对应的批注 id（批注发布任务才有）：用于前端标出"这批批注正在发布中" */
+  annotationIds?: string[];
+}
+
+/** 正在执行的 AI 任务 */
+export interface AiRunningTask {
+  id: string;
+  cli: string;
+  label: string;
+  model: string | null;
+  target: string;
+  summary: string;
+  startedAt: number;
+  elapsedSec: number;
+  /** 按历史中位数预估的总耗时（秒） */
+  etaSec: number;
+  /** 预计剩余秒数；0 = 已超出预估（任务仍在跑） */
+  remainSec: number;
+  /** 距上次输出多少秒，超过 60 可提示"可能卡住" */
+  idleSec: number;
+  /** 该任务对应的批注 id（批注发布任务才有）：用于前端标出"这批批注正在发布中" */
+  annotationIds?: string[];
+}
+
+/** 全局 AI 任务状态（GET /api/ai/task） */
+export interface AiTaskSnapshot {
+  running: boolean;
+  task: AiRunningTask | null;
+  queue: AiQueueItem[];
+  /** 队首任务预计总耗时（秒） */
+  etaSec: number;
+}
+
+/** aiExecute 的排队事件：排队期间每 5s 回调一次，携带最新排队位置 */
+export interface AiQueueEvent {
+  taskId: string;
+  /** 当前排队位置（1 = 下一个执行） */
+  position: number;
+  /** 预计还需等待秒数 */
+  waitEtaSec: number;
+  queue: AiQueueItem[];
+  /** 当前正在执行的任务（用于展示"前面那个人在改什么"） */
+  running: AiRunningTask | null;
+}
+
 /** 新建原型时的技术栈：engine 决定入口文件（vue → index.vue），ui 决定组件库/主题 */
 export interface CreateEntryOptions {
   engine?: 'react' | 'vue';
@@ -128,4 +187,66 @@ export interface PrdDoc {
   title?: string;
   summary?: string;
   syncedAt?: string;
+}
+
+// ── 批量任务：一条指令 → 多个原型页面各跑一遍 AI（服务端串行执行）──
+
+export type BatchItemStatus = 'pending' | 'queued' | 'running' | 'done' | 'failed' | 'cancelled' | 'cancelling';
+
+/** 批量任务中的单个子任务（对应一个原型页面） */
+export interface BatchItem {
+  id: string;
+  /** 原型目录名 */
+  name: string;
+  title: string;
+  /** 操作目标（src/prototypes/<name>/） */
+  target: string;
+  status: BatchItemStatus;
+  /** 执行前的基线快照 hash；null = 无快照，不可回滚 */
+  baselineHash: string | null;
+  /** 相对基线改动的文件清单 */
+  changedFiles: string[];
+  /** AI 输出（只保留末尾若干字符） */
+  output: string;
+  /** 失败原因 / 停止说明 */
+  error: string;
+  startedAt: number | null;
+  finishedAt: number | null;
+  elapsedSec: number;
+  /** 排队位置（1 = 队首） */
+  position: number;
+  /** 排队预计等待秒数 */
+  waitSec: number;
+  stopRequested: boolean;
+  /** 是否已回滚 */
+  rolledBack: boolean;
+}
+
+/** 整批任务结束后的汇总 */
+export interface BatchSummary {
+  total: number;
+  done: number;
+  failed: number;
+  cancelled: number;
+  /** 本次批量共改动的文件数（去重） */
+  files: number;
+  elapsedSec: number;
+}
+
+/** 一个批量任务（1 条指令 + N 个目标页面） */
+export interface BatchJob {
+  id: string;
+  cli: string;
+  label: string;
+  model: string | null;
+  instruction: string;
+  status: 'queued' | 'running' | 'done';
+  /** 在批量任务队列中的位置（1 = 下一个执行） */
+  queuePosition: number;
+  createdAt: number;
+  finishedAt: number | null;
+  cancelRequested: boolean;
+  items: BatchItem[];
+  /** 全部结束后的汇总报告 */
+  summary: BatchSummary | null;
 }

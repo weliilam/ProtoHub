@@ -6,6 +6,12 @@
  */
 export interface AiTaskState {
   running: boolean;
+  /** 排队中：前面还有任务在跑，服务端尚未开始执行本任务 */
+  queued: boolean;
+  /** 排队位置（1 = 下一个执行；0 = 未排队） */
+  queuePosition: number;
+  /** 预计还需等待秒数 */
+  queueWaitSec: number;
   /** 任务所属条目 key（与会话持久化 key 一致），用于重开面板时判断是否恢复 */
   entryKey: string;
   cli: string;
@@ -18,6 +24,9 @@ export interface AiTaskState {
 
 const initial: AiTaskState = {
   running: false,
+  queued: false,
+  queuePosition: 0,
+  queueWaitSec: 0,
   entryKey: '',
   cli: '',
   target: '',
@@ -48,6 +57,9 @@ export const aiTaskStore = {
   start(p: { entryKey: string; cli: string; target: string }) {
     state = {
       running: true,
+      queued: false,
+      queuePosition: 0,
+      queueWaitSec: 0,
       entryKey: p.entryKey,
       cli: p.cli,
       target: p.target,
@@ -72,6 +84,20 @@ export const aiTaskStore = {
   },
   setElapsed(e: number) {
     state = { ...state, elapsed: e };
+    emit();
+  },
+  /**
+   * 排队进度（服务端每 5s 推一次）。position 为 0 表示已轮到自己开始执行，
+   * 此时清空排队标记并重置计时（执行时长由服务端心跳校准）。
+   */
+  setQueue(position: number, waitSec: number) {
+    state = {
+      ...state,
+      queued: position > 0,
+      queuePosition: position,
+      queueWaitSec: waitSec,
+      ...(position > 0 ? null : { elapsed: 0 }),
+    };
     emit();
   },
   /** 任务结束（成功/失败/停止）后清理全局状态 */

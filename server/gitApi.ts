@@ -116,7 +116,11 @@ async function pendingChangeCount(ref: string, scope: string): Promise<number> {
  * 父提交优先取上一次备份（快照链更紧凑），没有则取当前 HEAD（回滚时 diff 更直观）。
  */
 async function createBackupCommit(ref: string, message: string): Promise<string> {
-  const tree = await git(['write-tree']);
+  return commitTreeOnRef(ref, await git(['write-tree']), message);
+}
+
+/** 用指定 tree 造一条"只挂 ref、不进分支"的提交，并推进该 ref */
+async function commitTreeOnRef(ref: string, tree: string, message: string): Promise<string> {
   const args = ['commit-tree', tree, '-m', message];
   if (await refExists(ref)) {
     args.push('-p', await git(['rev-parse', ref]));
@@ -135,6 +139,61 @@ async function createBackupCommit(ref: string, message: string): Promise<string>
   await git(['update-ref', ref, hash]);
   return hash;
 }
+
+// ── 批量任务（server/aiBatchApi.ts）复用：基线快照 / 变更清单 / 一键回滚 ──
+//
+// 批量任务在改某个目标之前先给它建一条基线快照，改完后据此算出"这次动了哪些文件"，
+// 并支持把这个目标整体回滚回基线。全程使用临时索引，不会动到使用者的暂存区。
+
+/**
+ * 为目标创建基线快照，返回完整 hash；目标下没有任何文件（无内容可回滚）时返回 null。
+ * 基底优先取上一次快照、其次 HEAD，保证写出的 tree 里该目标的内容完整。
+ */
+export async function createBaselineSnapshot(scope: string, message: string): Promise<string | null> {
+  const ref = backupRefName(scope);
+  const tmpIndex = path.join(tmpdir(), `hatch-base-${process.pid}-${Date.now()}`);
+  const env = { GIT_INDEX_FILE: tmpIndex };
+  try {
+    let base: string | null = null;
+    if (await refExists(ref)) {
+      base = await git(['rev-parse', ref]);
+    } else {
+      try { base = await git(['rev-parse', 'HEAD']); } catch { base = null; }
+    }
+    if (base) await git(['read-tree', base], env);
+    await git(['add', '-A', '-f', '--', scope], env);
+    const listed = await git(['ls-files', '-z', '--', scope], env);
+    if (!listed) return null;
+    const tree = await git(['write-tree'], env);
+    return await commitTreeOnRef(ref, tree, message);
+  } finally {
+    try { rmSync(tmpIndex, { force: true }); } catch { /* 临时索引清理失败不影响结果 */ }
+  }
+}
+
+/** 相对基线快照的变更文件清单（新增/修改/删除都在内），供批量任务展示"这次改了哪些文件" */
+export async function changedFilesSince(ref: string, scope: string): Promise<string[]> {
+  const tmpIndex = path.join(tmpdir(), `hatch-diff-${process.pid}-${Date.now()}`);
+  const env = { GIT_INDEX_FILE: tmpIndex };
+  try {
+    await git(['read-tree', ref], env);
+    await git(['add', '-A', '-f', '--', scope], env);
+    const out = await git(['diff-index', '--cached', '--name-only', '-z', ref, '--', scope], env);
+    return out ? out.split('\0').filter(Boolean) : [];
+  } catch {
+    return []; // 统计失败只影响展示，不该让整个任务失败
+  } finally {
+    try { rmSync(tmpIndex, { force: true }); } catch { /* ignore */ }
+  }
+}
+
+/** 把目标回滚到指定快照：先恢复基线内容，再清掉快照之后新建的未跟踪文件（原型目录被忽略，需 -x） */
+export async function restoreScopeTo(hash: string, scope: string): Promise<void> {
+  await git(['checkout', hash, '--', scope]);
+  await git(['clean', '-fdx', '--', scope]);
+}
+
+export { resolveScope };
 
 export function gitApiPlugin(): Plugin {
   return {

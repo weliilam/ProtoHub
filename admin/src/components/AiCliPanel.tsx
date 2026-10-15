@@ -12,6 +12,7 @@ import {
 import { api } from '../api';
 import { aiRunStore } from '../aiRunStore';
 import { aiTaskStore } from '../aiCliTask';
+import { refreshAiServerTask } from '../aiServerTask';
 import { getAiModel, setAiModel, setAiModelOptions, useAiModel } from '../aiModelStore';
 import {
   MAX_IMAGES,
@@ -171,6 +172,12 @@ export default function AiCliPanel({ selected }: { selected: EntryItem | null })
   /** 思考过程增量（灰字展示，让用户看到 AI 正在思考而不是卡死） */
   const [streamThinking, setStreamThinking] = useState('');
   const [running, setRunning] = useState(false);
+  /** 排队中：服务端已有任务在跑，本任务在 FIFO 队列里等待 */
+  const [queued, setQueued] = useState(false);
+  /** 排队位置（1 = 下一个执行） */
+  const [queuePosition, setQueuePosition] = useState(0);
+  /** 预计还需等待秒数 */
+  const [queueWaitSec, setQueueWaitSec] = useState(0);
   /** 已运行秒数：本地每秒 +1，服务端心跳每 5s 校准一次 */
   const [elapsed, setElapsed] = useState(0);
   /** 当前运行/最近一次运行的操作目标路径（如 src/prototypes/xxx/），让用户确认 AI 改的是当前原型 */
@@ -231,6 +238,9 @@ export default function AiCliPanel({ selected }: { selected: EntryItem | null })
     const s = aiTaskStore.get();
     if (s.running && s.entryKey === historyKey) {
       setRunning(true);
+      setQueued(s.queued);
+      setQueuePosition(s.queuePosition);
+      setQueueWaitSec(s.queueWaitSec);
       setStreaming(s.streaming);
       setStreamThinking(s.thinking);
       setRunTarget(s.target);
@@ -241,12 +251,16 @@ export default function AiCliPanel({ selected }: { selected: EntryItem | null })
       if (!t.running) {
         // 任务已结束（无论属于哪个条目）：清除本面板残留的执行状态
         setRunning(false);
+        setQueued(false);
         setStreaming('');
         setStreamThinking('');
         return;
       }
       if (t.entryKey !== historyKey) return; // 任务属于其他条目，不展示其内容
       setRunning(true);
+      setQueued(t.queued);
+      setQueuePosition(t.queuePosition);
+      setQueueWaitSec(t.queueWaitSec);
       setStreaming(t.streaming);
       setStreamThinking(t.thinking);
       setRunTarget(t.target);
@@ -396,6 +410,9 @@ export default function AiCliPanel({ selected }: { selected: EntryItem | null })
     const finalPrompt = [ctx, imageBlock, `用户指令：\n${content}`].filter(Boolean).join('\n\n');
     // 启动全局任务：任务生命周期独立于本组件，关闭面板后继续在后台执行
     aiTaskStore.start({ entryKey, cli, target });
+    setQueued(false);
+    setQueuePosition(0);
+    setQueueWaitSec(0);
     const controller = new AbortController();
     aiTaskStore.setController(controller);
     try {
@@ -417,6 +434,13 @@ export default function AiCliPanel({ selected }: { selected: EntryItem | null })
           // 思考过程增量：实时展示 AI 正在思考的内容
           if (selectedNameRef.current !== entryName) return;
           aiTaskStore.appendThinking(chunk);
+        },
+        {
+          target,
+          // 排队进度：服务端每 5s 推一次；position=0 表示已轮到自己
+          onQueued: (info) => aiTaskStore.setQueue(info.position, info.waitEtaSec),
+          // 排队结束、正式开始执行
+          onStart: () => aiTaskStore.setQueue(0, 0),
         },
       );
       if (selectedNameRef.current !== entryName) return; // 已切走，不更新 UI
@@ -445,6 +469,8 @@ export default function AiCliPanel({ selected }: { selected: EntryItem | null })
       // 全局清理（组件卸载后也会执行）：任务已结束，重开面板时不再恢复运行状态
       aiTaskStore.stop();
       aiRunStore.set(false);
+      // 让顶栏任务徽标立即更新（否则要等下一次轮询，最长 5s）
+      void refreshAiServerTask();
       if (mountedRef.current && selectedNameRef.current === entryName) {
         setStreaming('');
         setStreamThinking('');
@@ -569,7 +595,7 @@ export default function AiCliPanel({ selected }: { selected: EntryItem | null })
           {running && (
             <span className="ph-ai-running-badge">
               <span className="ph-ai-running-dot" />
-              {fmtElapsed(elapsed)}
+              {queued ? `排队中 #${queuePosition || 1}` : fmtElapsed(elapsed)}
             </span>
           )}
         </span>
@@ -648,7 +674,15 @@ export default function AiCliPanel({ selected }: { selected: EntryItem | null })
               </div>
               <div className="ph-ai-running-row">
                 <Spin size="small" />
-                <span>AI 正在执行中… 已运行 {fmtElapsed(elapsed)}</span>
+                {queued ? (
+                  <span>
+                    排队中… 前面还有 {Math.max(0, queuePosition - 1)} 个任务
+                    {queueWaitSec > 0 ? `，预计等待 ${fmtElapsed(queueWaitSec)}` : ''}
+                    （上一个任务完成后会自动开始）
+                  </span>
+                ) : (
+                  <span>AI 正在执行中… 已运行 {fmtElapsed(elapsed)}</span>
+                )}
               </div>
             </div>
           )}

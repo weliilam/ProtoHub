@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
-import { Button, Dropdown, Empty, Input, Modal, Select, Space, Tabs, Tag, Tooltip, message } from 'antd';
+import { Fragment, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { Button, Checkbox, Dropdown, Empty, Input, Modal, Select, Space, Tabs, Tag, Tooltip, message } from 'antd';
 import {
   AppstoreOutlined,
   ArrowDownOutlined,
@@ -11,17 +11,22 @@ import {
   FolderOutlined,
   FolderOpenOutlined,
   LinkOutlined,
+  MenuFoldOutlined,
+  MenuUnfoldOutlined,
   MoreOutlined,
   PlusOutlined,
   ReloadOutlined,
   RightOutlined,
+  RobotOutlined,
   SearchOutlined,
   SkinOutlined,
+  ThunderboltOutlined,
   UngroupOutlined,
 } from '@ant-design/icons';
-import type { CreateEntryOptions, EntryItem, EntryType, GroupConfig, PrdDoc, PrototypeInfo } from '../types';
+import type { BatchJob, CreateEntryOptions, EntryItem, EntryType, GroupConfig, PrdDoc, PrototypeInfo } from '../types';
 import { api } from '../api';
 import CreatePrototypeModal from './CreatePrototypeModal';
+import BatchAiModal from './BatchAiModal';
 
 interface SidebarProps {
   entries: EntryItem[];
@@ -33,6 +38,8 @@ interface SidebarProps {
   onRefresh: () => void;
   onPrdPreview?: (doc: PrdDoc | null) => void;
   onOpenCmdk?: () => void;
+  /** 批量任务创建后打开右侧「批量任务」面板 */
+  onOpenBatchPanel?: () => void;
 }
 
 const TYPE_ICON: Record<EntryType, React.ReactNode> = {
@@ -43,6 +50,82 @@ const TYPE_ICON: Record<EntryType, React.ReactNode> = {
   table: <DatabaseOutlined />,
 };
 
+const TYPE_LABEL: Record<EntryType, string> = {
+  prototype: '原型页面',
+  component: '组件',
+  doc: '文档',
+  theme: '主题',
+  table: '数据表',
+};
+
+// ── 收起态（图标条）用：字母缩略块 ──
+/** 中文取首字；英文单词数 ≥2 取两词首字母，否则取前 2 字符 */
+function thumbChar(title: string, name: string) {
+  const t = (title || name || '').trim();
+  if (!t) return '·';
+  if (/[\u4e00-\u9fa5]/.test(t[0])) return t[0];
+  const words = t.split(/[\s\-_]+/).filter(Boolean);
+  if (words.length >= 2) return (words[0][0] + words[1][0]).toUpperCase();
+  return t.slice(0, 2).toUpperCase();
+}
+
+/** 收起态单个条目：字母缩略块 + 悬停飞出预览卡片 */
+function RailItem(props: {
+  item: EntryItem;
+  active: boolean;
+  groupName?: string;
+  selectMode?: boolean;
+  checked?: boolean;
+  onSelect: () => void;
+  onToggleCheck?: () => void;
+}) {
+  const { item, active, groupName, selectMode, checked } = props;
+  const isProto = item.type === 'prototype';
+  // 卡片头部复用条目栏里那块字母块（放大 + 品牌色），扫一眼就知道悬停的是哪一条
+  const preview = (
+    <div className="ph-rail-preview">
+      <div className="ph-rail-preview-head">
+        <span className={`ph-rail-preview-avatar${isProto ? '' : ' neutral'}`}>
+          {isProto ? thumbChar(item.title, item.name) : TYPE_ICON[item.type]}
+        </span>
+        <div className="ph-rail-preview-heading">
+          <div className="ph-rail-preview-title">{item.title || item.name}</div>
+          <div className="ph-rail-preview-sub">{item.name}</div>
+        </div>
+      </div>
+      {/* 分组名占据底部的品牌色主位（长列表里靠它认位置），类型退成右侧灰字 */}
+      <div className="ph-rail-preview-foot">
+        {isProto ? (
+          <span className={`ph-rail-preview-group${groupName ? '' : ' muted'}`}>
+            <FolderOutlined />
+            <span className="ph-rail-preview-group-text">{groupName || '未分组'}</span>
+          </span>
+        ) : (
+          <span className="ph-rail-preview-group">{TYPE_LABEL[item.type]}</span>
+        )}
+        {isProto && <span className="ph-rail-preview-type">{TYPE_LABEL[item.type]}</span>}
+      </div>
+    </div>
+  );
+
+  return (
+    <Tooltip title={preview} placement="right" mouseEnterDelay={0.18} classNames={{ root: 'ph-rail-tip' }}>
+      <button
+        type="button"
+        className={`ph-rail-item${active ? ' active' : ''}${checked ? ' checked' : ''}`}
+        onClick={selectMode ? props.onToggleCheck : props.onSelect}
+      >
+        {isProto ? (
+          <span className="ph-rail-thumb">{thumbChar(item.title, item.name)}</span>
+        ) : (
+          <span className="ph-rail-icon">{TYPE_ICON[item.type]}</span>
+        )}
+        {selectMode && <span className={`ph-rail-check${checked ? ' on' : ''}`} />}
+      </button>
+    </Tooltip>
+  );
+}
+
 function EntryRow(props: {
   item: EntryItem;
   active: boolean;
@@ -51,6 +134,10 @@ function EntryRow(props: {
   onDelete: () => Promise<void>;
   groups: GroupConfig[];
   onMoveGroup: (prototype: string, groupId?: string) => Promise<void>;
+  /** 批量选择模式：整行点击 = 勾选/取消勾选（不切换预览） */
+  selectMode?: boolean;
+  checked?: boolean;
+  onToggleCheck?: () => void;
 }) {
   const { item, active, groups, onMoveGroup } = props;
 
@@ -118,30 +205,33 @@ function EntryRow(props: {
 
   return (
     <div
-      className={`ph-entry-item${active ? ' active' : ''}${item.groupId ? '' : ' root-level'}`}
-      onClick={props.onSelect}
+      className={`ph-entry-item${active ? ' active' : ''}${item.groupId ? '' : ' root-level'}${props.checked ? ' checked' : ''}`}
+      onClick={props.selectMode ? props.onToggleCheck : props.onSelect}
     >
+      {props.selectMode && <Checkbox checked={!!props.checked} />}
       {TYPE_ICON[item.type]}
       <Tooltip title={item.name} placement="right">
         <span className="ph-entry-name">{item.title}</span>
       </Tooltip>
       <span className="ph-entry-actions" onClick={(e) => e.stopPropagation()}>
-        <Dropdown
-          menu={{
-            items: menuItems,
-            onClick: ({ key, domEvent }) => {
-              domEvent.stopPropagation();
-              if (key === 'rename') handleRename();
-              else if (key === 'delete') handleDelete();
-              else if (key === 'move-out') onMoveGroup(item.name, undefined);
-              else if (key.startsWith('move-')) onMoveGroup(item.name, key.replace('move-', ''));
-              else if (key === 'info') handleShowInfo();
-            },
-          }}
-          trigger={['click']}
-        >
-          <Button type="text" size="small" icon={<MoreOutlined />} />
-        </Dropdown>
+        {!props.selectMode && (
+          <Dropdown
+            menu={{
+              items: menuItems,
+              onClick: ({ key, domEvent }) => {
+                domEvent.stopPropagation();
+                if (key === 'rename') handleRename();
+                else if (key === 'delete') handleDelete();
+                else if (key === 'move-out') onMoveGroup(item.name, undefined);
+                else if (key.startsWith('move-')) onMoveGroup(item.name, key.replace('move-', ''));
+                else if (key === 'info') handleShowInfo();
+              },
+            }}
+            trigger={['click']}
+          >
+            <Button type="text" size="small" icon={<MoreOutlined />} />
+          </Dropdown>
+        )}
       </span>
       <Modal
         open={!!infoData}
@@ -256,6 +346,10 @@ function GroupPanel(props: {
   index?: number;
   total?: number;
   onMoveGroupOrder?: (id: string, dir: -1 | 1) => void;
+  /** 批量选择模式（禁用拖拽，整行点击 = 勾选） */
+  selectMode?: boolean;
+  selectSet?: Set<string>;
+  onToggleCheck?: (name: string) => void;
 }) {
   const { group, items, selected, allGroups } = props;
   const [dropIndex, setDropIndex] = useState<number | null>(null);
@@ -409,7 +503,7 @@ function GroupPanel(props: {
             items.map((item, idx) => (
               <div
                 key={item.name}
-                draggable
+                draggable={!props.selectMode}
                 className={`ph-drag-item${dropIndex === idx ? ' drop-active' : ''}`}
                 onDragStart={(e) => handleDragStart(e, idx)}
                 onDragOver={(e) => handleDragOver(e, idx)}
@@ -424,12 +518,15 @@ function GroupPanel(props: {
                   onDelete={() => props.onDelete(item)}
                   groups={allGroups}
                   onMoveGroup={props.onMoveGroup}
+                  selectMode={props.selectMode}
+                  checked={props.selectSet?.has(item.name)}
+                  onToggleCheck={() => props.onToggleCheck?.(item.name)}
                 />
               </div>
             ))
           )}
-          {/* 末尾可放置位：拖到最后一个元素下方 */}
-          {items.length > 0 && (
+          {/* 末尾可放置位：拖到最后一个元素下方（批量选择时不需要） */}
+          {items.length > 0 && !props.selectMode && (
             <div
               className={`ph-drag-item ph-drag-end${dropIndex === items.length ? ' drop-active' : ''}`}
               onDragOver={(e) => handleDragOver(e, items.length)}
@@ -449,6 +546,11 @@ export default function Sidebar(props: SidebarProps) {
   const [keyword, setKeyword] = useState('');
   const [debouncedKeyword, setDebouncedKeyword] = useState('');
   const debounceRef = useRef<ReturnType<typeof setTimeout>>();
+  /** 侧边栏收起为图标条（收起后展示字母缩略图 + 悬停飞出预览） */
+  const [collapsed, setCollapsedRaw] = useState(() => localStorage.getItem('ph_sidebar_collapsed') === '1');
+  const searchBoxRef = useRef<HTMLDivElement | null>(null);
+  /** 收起态条目列表的滚动容器（用于把当前预览的条目滚进视野） */
+  const railBodyRef = useRef<HTMLDivElement | null>(null);
   const [groups, setGroups] = useState<GroupConfig[]>([]);
   /** 未分组区域是否处于「可移入」高亮态（把分组内的原型拖出来时） */
   const [ugDropActive, setUgDropActive] = useState(false);
@@ -465,6 +567,104 @@ export default function Sidebar(props: SidebarProps) {
   const [createOpen, setCreateOpen] = useState(false);
   /** 创建完成后待自动选中的原型目录名：等列表刷新出该条目再选中 */
   const [pendingProto, setPendingProto] = useState<string | null>(null);
+  /** 批量修改模式：勾选多个原型页面 → 一条指令 → 1 个批量任务 */
+  const [batchMode, setBatchMode] = useState(false);
+  const [batchSel, setBatchSel] = useState<string[]>([]);
+  const [batchOpen, setBatchOpen] = useState(false);
+
+  const exitBatchMode = () => {
+    setBatchMode(false);
+    setBatchSel([]);
+  };
+
+  // 收起状态持久化（下次进入保持用户习惯）
+  const setCollapsed = (next: boolean) => {
+    setCollapsedRaw(next);
+    try { localStorage.setItem('ph_sidebar_collapsed', next ? '1' : '0'); } catch {}
+  };
+
+  // Ctrl/⌘ + B 切换收起；收起态下输入任意可打印字符自动展开并聚焦搜索
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'b') {
+        e.preventDefault();
+        setCollapsedRaw((prev) => {
+          const next = !prev;
+          try { localStorage.setItem('ph_sidebar_collapsed', next ? '1' : '0'); } catch {}
+          return next;
+        });
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
+
+  /**
+   * 收起态：当前预览的条目自动滚进视野——选完原型收回去，不必手动往下拉。
+   * 已经完整可见时不打扰（用户自己滚过的地方不会被抢回来），需要滚动时居中，
+   * 上下留出邻近条目做位置参照。
+   */
+  useLayoutEffect(() => {
+    if (!collapsed) return;
+    const body = railBodyRef.current;
+    if (!body) return;
+    const el = body.querySelector<HTMLElement>('.ph-rail-item.active');
+    if (!el) return;
+    const bodyRect = body.getBoundingClientRect();
+    const elRect = el.getBoundingClientRect();
+    if (elRect.top >= bodyRect.top && elRect.bottom <= bodyRect.bottom) return;
+    const top = body.scrollTop + (elRect.top - bodyRect.top) - (body.clientHeight - elRect.height) / 2;
+    const max = body.scrollHeight - body.clientHeight;
+    body.scrollTo({ top: Math.max(0, Math.min(top, max)), behavior: 'smooth' });
+  }, [collapsed, tab, debouncedKeyword, entries, selected?.type, selected?.name]);
+
+  /** 收起态点搜索：先展开，再把焦点交给搜索框 */
+  const expandAndFocusSearch = () => {
+    setCollapsed(false);
+    setTimeout(() => searchBoxRef.current?.querySelector('input')?.focus(), 240);
+  };
+
+  /** 收起态底部「新建」菜单：原展开态里的新建入口在图标条下收进 Dropdown */
+  const railCreateMenu = {
+    items: [
+      { key: 'prototype', icon: <PlusOutlined />, label: '新建原型' },
+      ...(tab === 'prototype' ? [{ key: 'group', icon: <FolderOutlined />, label: '新建分组' }] : []),
+      ...(tab === 'doc' ? [{ key: 'doc', icon: <FileTextOutlined />, label: '新建文档' }] : []),
+      ...(tab === 'doc' ? [{ key: 'prd', icon: <LinkOutlined />, label: '关联飞书 PRD' }] : []),
+      ...(tab === 'resource' ? [{ key: 'table', icon: <DatabaseOutlined />, label: '新建数据表' }] : []),
+    ],
+    onClick: ({ key }: { key: string }) => {
+      if (key === 'group') handleCreateGroup();
+      else if (key === 'prd') {
+        setPrdAddProto(undefined);
+        setPrdAddUrl('');
+        setPrdAddOpen(true);
+      } else handleCreate(key as EntryType);
+    },
+  };
+
+  const toggleBatchCheck = (name: string) =>
+    setBatchSel((prev) => (prev.includes(name) ? prev.filter((n) => n !== name) : [...prev, name]));
+
+  /** 勾选目录名 → 任务目标（过滤掉已被删除/重命名的原型） */
+  const batchTargets = useMemo(
+    () =>
+      batchSel
+        .map((name) => entries.find((e) => e.type === 'prototype' && e.name === name))
+        .filter((e): e is EntryItem => !!e)
+        .map((e) => ({ name: e.name, title: e.title || e.name })),
+    [batchSel, entries],
+  );
+
+  const batchSelectedSet = useMemo(() => new Set(batchSel), [batchSel]);
+
+  // 切到「文档/资源」Tab 时自动退出批量修改（批量只针对原型页面）
+  useEffect(() => {
+    if (tab !== 'prototype' && batchMode) {
+      setBatchMode(false);
+      setBatchSel([]);
+    }
+  }, [tab, batchMode]);
 
   useEffect(() => {
     if (!pendingProto) return;
@@ -902,6 +1102,9 @@ export default function Sidebar(props: SidebarProps) {
             total={orderedGroups.length}
             onMoveGroupOrder={handleMoveGroupOrder}
             isOpen={openFolders.has(g.id)}
+            selectMode={batchMode}
+            selectSet={batchSelectedSet}
+            onToggleCheck={toggleBatchCheck}
             onToggle={() =>
               setOpenFolders((prev) => {
                 const next = new Set(prev);
@@ -915,8 +1118,8 @@ export default function Sidebar(props: SidebarProps) {
         <div
           className={`ph-ungrouped-zone${ugDropActive ? ' drop-active' : ''}`}
           onDragOver={(e) => {
-            // 只有分组内的原型拖过来才有意义（移出分组）
-            if (!draggingProto?.groupId) return;
+            // 只有分组内的原型拖过来才有意义（移出分组）；批量选择模式下不接收拖拽
+            if (batchMode || !draggingProto?.groupId) return;
             e.preventDefault();
             e.dataTransfer.dropEffect = 'move';
             setUgDropActive(true);
@@ -943,7 +1146,7 @@ export default function Sidebar(props: SidebarProps) {
           {ungrouped.map((item) => (
             <div
               key={`ug-${item.name}`}
-              draggable
+              draggable={!batchMode}
               className="ph-drag-item"
               onDragStart={(e) => {
                 e.dataTransfer.setData('text/plain', item.name);
@@ -965,6 +1168,9 @@ export default function Sidebar(props: SidebarProps) {
                 onDelete={() => props.onDelete(item)}
                 groups={groups}
                 onMoveGroup={handleMoveGroup}
+                selectMode={batchMode}
+                checked={batchSelectedSet.has(item.name)}
+                onToggleCheck={() => toggleBatchCheck(item.name)}
               />
             </div>
           ))}
@@ -976,11 +1182,103 @@ export default function Sidebar(props: SidebarProps) {
     );
   };
 
+  /** 收起态：按 Tab 汇总的可跳转条目（原型按分组分段，组名悬停可见） */
+  const renderRail = () => {
+    const sections: { label: string; items: EntryItem[] }[] = [];
+    if (tab === 'prototype') {
+      const { grouped, ungrouped } = groupedProtos;
+      groups.forEach((g) => {
+        const items = grouped[g.id] || [];
+        if (items.length) sections.push({ label: g.name, items });
+      });
+      if (ungrouped.length) sections.push({ label: '未分组', items: ungrouped });
+    } else if (tab === 'doc') {
+      const docs = byType('doc');
+      if (docs.length) sections.push({ label: '文档', items: docs });
+    } else {
+      const groupsOfType: [string, EntryItem[]][] = [
+        ['组件', byType('component')],
+        ['主题', byType('theme')],
+        ['数据表', byType('table')],
+      ];
+      groupsOfType.forEach(([label, items]) => {
+        if (items.length) sections.push({ label, items });
+      });
+    }
+
+    const total = sections.reduce((n, s) => n + s.items.length, 0) + (tab === 'doc' ? prdItems.length : 0);
+    if (!total) return <div className="ph-rail-empty">{debouncedKeyword ? '无匹配' : '暂无'}</div>;
+
+    const groupNameOf = (item: EntryItem) => groups.find((g) => g.id === item.groupId)?.name;
+    const isActive = (item: EntryItem) => selected?.type === item.type && selected?.name === item.name;
+
+    return (
+      <>
+        {sections.map((s, i) => (
+          <Fragment key={`${tab}-${s.label}-${i}`}>
+            <Tooltip title={s.label} placement="right">
+              <div className="ph-rail-divider">
+                <span>{s.label.slice(0, 1)}</span>
+              </div>
+            </Tooltip>
+            {s.items.map((item) => (
+              <RailItem
+                key={`${item.type}-${item.name}`}
+                item={item}
+                active={isActive(item)}
+                groupName={groupNameOf(item)}
+                selectMode={batchMode && item.type === 'prototype'}
+                checked={batchSelectedSet.has(item.name)}
+                onSelect={() => props.onSelect(item)}
+                onToggleCheck={() => toggleBatchCheck(item.name)}
+              />
+            ))}
+          </Fragment>
+        ))}
+        {/* 文档 Tab 收起态同样保留「飞书 PRD 关联」入口 */}
+        {tab === 'doc' && prdItems.length > 0 && (
+          <>
+            <Tooltip title="飞书 PRD" placement="right">
+              <div className="ph-rail-divider">
+                <span>飞</span>
+              </div>
+            </Tooltip>
+            {prdItems.map((p) => (
+              <RailItem
+                key={`prd-${p.name}`}
+                item={{ name: p.name, title: p.docs[0]?.title || p.name, type: 'doc', mtime: 0 }}
+                active={false}
+                groupName="飞书 PRD"
+                onSelect={() => props.onPrdPreview?.(p.docs[0] ?? null)}
+              />
+            ))}
+          </>
+        )}
+      </>
+    );
+  };
+
+  /** 收起态图标 Tab（带数量角标） */
+  const railTabs = [
+    { key: 'prototype', label: '原型页面', icon: <AppstoreOutlined />, count: byType('prototype').length },
+    { key: 'doc', label: '文档', icon: <FileTextOutlined />, count: byType('doc').length + prdItems.length },
+    {
+      key: 'resource',
+      label: '组件 / 主题 / 数据表',
+      icon: <SkinOutlined />,
+      count: byType('component').length + byType('theme').length + byType('table').length,
+    },
+  ];
+
   return (
-    <div className="ph-sidebar">
+    <div className={`ph-sidebar${collapsed ? ' is-collapsed' : ''}`}>
       <div className="ph-sidebar-header">
+        <Tooltip title={collapsed ? '展开侧边栏（Ctrl+B）' : ''} placement="right">
         <div className="ph-sidebar-title">
-          <div className="ph-logo-mark">
+          <div
+            className={`ph-logo-mark${collapsed ? ' clickable' : ''}`}
+            onClick={collapsed ? () => setCollapsed(false) : undefined}
+          >
             <svg viewBox="0 0 36 36" width="32" height="32" aria-hidden="true">
               <defs>
                 <linearGradient id="ph-logo-grad" x1="0" y1="0" x2="1" y2="1">
@@ -1004,10 +1302,74 @@ export default function Sidebar(props: SidebarProps) {
               />
             </svg>
           </div>
-          <span className="ph-logo-text">Hatch</span>
+          {!collapsed && <span className="ph-logo-text">Hatch</span>}
         </div>
+        </Tooltip>
+        {!collapsed && (
+          <Tooltip title="收起侧边栏（Ctrl+B）" placement="left">
+            <Button
+              type="text"
+              size="small"
+              className="ph-sidebar-fold"
+              icon={<MenuFoldOutlined />}
+              onClick={() => setCollapsed(true)}
+            />
+          </Tooltip>
+        )}
       </div>
-      <div style={{ padding: '8px 12px 0' }}>
+
+      {collapsed ? (
+        <>
+          {/* 收起态顶部入口：展开（与展开态 header 的收起按钮对称）+ 全局搜索 */}
+          <div className="ph-rail-tools">
+            <Tooltip title="展开侧边栏（Ctrl+B）" placement="right">
+              <button className="ph-rail-btn" onClick={() => setCollapsed(false)}>
+                <MenuUnfoldOutlined />
+              </button>
+            </Tooltip>
+            {props.onOpenCmdk && (
+              <Tooltip title="全局搜索 / 命令（Ctrl+K）" placement="right">
+                <button className="ph-rail-btn" onClick={props.onOpenCmdk}>
+                  <SearchOutlined />
+                </button>
+              </Tooltip>
+            )}
+          </div>
+          {/* 收起态：Tab 图标（原型 / 文档 / 资源），悬停看名称，角标看数量 */}
+          <div className="ph-rail-tabs">
+            {railTabs.map((t) => (
+              <Tooltip key={t.key} title={t.label} placement="right">
+                <button
+                  className={`ph-rail-btn${tab === t.key ? ' active' : ''}`}
+                  onClick={() => setTab(t.key as typeof tab)}
+                >
+                  {t.icon}
+                  {t.count > 0 && <span className="ph-rail-badge">{t.count}</span>}
+                </button>
+              </Tooltip>
+            ))}
+          </div>
+          <div className="ph-rail-body" ref={railBodyRef}>{renderRail()}</div>
+          <div className="ph-rail-footer">
+            {batchMode ? (
+              <Tooltip title={`批量修改中：已选 ${batchSel.length} 个页面（点击展开继续）`} placement="right">
+                <button className="ph-rail-btn active" onClick={() => setCollapsed(false)}>
+                  <ThunderboltOutlined />
+                  <span className="ph-rail-badge">{batchSel.length}</span>
+                </button>
+              </Tooltip>
+            ) : (
+              <Dropdown menu={railCreateMenu} trigger={['click']} placement="topRight">
+                <button className="ph-rail-btn" title="新建">
+                  <PlusOutlined />
+                </button>
+              </Dropdown>
+            )}
+          </div>
+        </>
+      ) : (
+        <>
+      <div style={{ padding: '8px 12px 0' }} ref={searchBoxRef}>
         <Input.Search placeholder="搜索..." size="small" allowClear value={keyword} onChange={(e) => handleKeywordChange(e.target.value)} onClear={() => { setKeyword(''); setDebouncedKeyword(''); }} />
         {props.onOpenCmdk && (
           <button className="ph-cmdk-trigger" onClick={props.onOpenCmdk}>
@@ -1037,6 +1399,14 @@ export default function Sidebar(props: SidebarProps) {
                 新建原型
               </Button>
               <Button size="small" icon={<FolderOutlined />} onClick={handleCreateGroup} title="新建分组" />
+              <Tooltip title={batchMode ? '退出批量修改' : '批量修改：勾选多个页面，用一条指令统一改'}>
+                <Button
+                  size="small"
+                  type={batchMode ? 'primary' : 'default'}
+                  icon={<ThunderboltOutlined />}
+                  onClick={() => (batchMode ? exitBatchMode() : setBatchMode(true))}
+                />
+              </Tooltip>
             </div>
             {renderPrototypeList()}
           </>
@@ -1073,6 +1443,35 @@ export default function Sidebar(props: SidebarProps) {
           </>
         )}
       </div>
+        </>
+      )}
+
+      {/* 批量修改：勾选多个原型页面 → 一条指令 → 1 个批量任务（勾选状态在这里，不随预览切换丢失） */}
+      {batchMode && !collapsed && (
+        <div className="ph-batch-bar">
+          <div className="ph-batch-bar-info">
+            <span>
+              已选 <b>{batchSel.length}</b> 个页面
+            </span>
+            <a onClick={() => setBatchSel(byType('prototype').map((p) => p.name))}>全选当前</a>
+            {batchSel.length > 0 && <a onClick={() => setBatchSel([])}>清空</a>}
+          </div>
+          <div className="ph-batch-bar-actions">
+            <Button size="small" onClick={exitBatchMode}>
+              退出
+            </Button>
+            <Button
+              size="small"
+              type="primary"
+              icon={<RobotOutlined />}
+              disabled={batchSel.length === 0}
+              onClick={() => setBatchOpen(true)}
+            >
+              写指令
+            </Button>
+          </div>
+        </div>
+      )}
 
       {/* 新建飞书 PRD 关联：选择原型 + 粘贴链接 */}
       <Modal
@@ -1120,6 +1519,20 @@ export default function Sidebar(props: SidebarProps) {
         onCancel={() => setCreateOpen(false)}
         onCreate={(name, title, options) => props.onCreate('prototype', name, title, options)}
         onCreated={(name) => setPendingProto(name)}
+      />
+
+      {/* 批量 AI 指令：对勾选的 N 个页面下一条统一指令 */}
+      <BatchAiModal
+        open={batchOpen}
+        targets={batchTargets}
+        onCancel={() => setBatchOpen(false)}
+        onRemoveTarget={(name) => setBatchSel((prev) => prev.filter((n) => n !== name))}
+        onCreated={(job: BatchJob) => {
+          setBatchOpen(false);
+          exitBatchMode();
+          props.onOpenBatchPanel?.();
+          void job;
+        }}
       />
     </div>
   );

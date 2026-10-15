@@ -16,6 +16,7 @@ import {
   SearchOutlined,
   SunOutlined,
   TabletOutlined,
+  ThunderboltOutlined,
 } from '@ant-design/icons';
 import Sidebar from './components/Sidebar';
 import PrototypePreview from './components/PrototypePreview';
@@ -29,16 +30,23 @@ import CommandPalette, { type CommandAction } from './components/CommandPalette'
 import { api } from './api';
 import { useTheme } from './theme';
 import { useAiRunning } from './aiRunStore';
+import { useAiServerTask } from './aiServerTask';
+import AiTaskBadge from './components/AiTaskBadge';
+import BatchTaskBadge from './components/BatchTaskBadge';
+import BatchTaskPanel from './components/BatchTaskPanel';
+import BatchDoneNotice from './components/BatchDoneNotice';
+import { useAiBatch, dismissBatchNotice } from './aiBatchStore';
 import type { PickedElement } from './annotation';
 import type { Annotation, CreateEntryOptions, EntryItem, PrdDoc, SourceMatch } from './types';
 
-type RightPanel = 'annotation' | 'git' | 'ai' | 'prd' | null;
+type RightPanel = 'annotation' | 'git' | 'ai' | 'prd' | 'batch' | null;
 
 /** 批注操作的可撤销记录 */
 type UndoAction =
   | { kind: 'add'; annotation: Annotation }
   | { kind: 'delete'; annotation: Annotation }
-  | { kind: 'toggle'; id: string; target: string; prevStatus: 'open' | 'done' };
+  // prevStatus 记录切换前的真实状态（可能是 open/done/resolved），撤销时原样还原
+  | { kind: 'toggle'; id: string; target: string; prevStatus: Annotation['status'] };
 
 /** 将同步后的功能描述文本转为排版良好的 HTML */
 function renderPrdContent(text: string): string {
@@ -145,6 +153,11 @@ export default function App() {
   const [closingPanel, setClosingPanel] = useState(false); // 面板关闭动画状态
   const { mode, toggle: toggleTheme } = useTheme();
   const aiRunning = useAiRunning();
+  /** 服务端 AI 任务状态：跨刷新/跨标签页可见（aiRunStore 只反映本页发起的任务） */
+  const aiServerTask = useAiServerTask();
+  /** 批量任务（一条指令改多个原型页面）：跨刷新可见，结束时弹汇总提示 */
+  const aiBatch = useAiBatch();
+  const batchRunning = aiBatch.jobs.filter((j) => j.status !== 'done').length;
   const [ips, setIps] = useState<string[]>([]);
 
   const refreshEntries = useCallback(async () => {
@@ -396,17 +409,35 @@ export default function App() {
     setUndoStack((s) => [...s, { kind: 'delete', annotation: a }]);
   };
 
+  // 当前选中原型的 ref：发布/异步回调里要判断"用户是不是还停在这个原型上"
+  const selectedNameRef = useRef<string | null>(null);
+  selectedNameRef.current = selected?.name ?? null;
+
   // 发布成功后把已勾选批注标记为已完成（页面标记自动变绿），并记录本次修改使用的 AI 模型、记录可撤销
-  const markAnnotationsDone = async (ids: string[], resolvedBy?: string) => {
-    if (!selected || ids.length === 0) return;
+  // target 由发布方显式传入：一次发布可能持续几分钟，期间用户可能已切换原型或关闭面板，
+  // 不能再用"当前选中"去刷列表（否则会把别的原型的批注灌进面板）
+  const markAnnotationsDone = async (ids: string[], resolvedBy?: string, target?: string) => {
+    const name = target || selected?.name;
+    if (!name || ids.length === 0) return;
     for (const id of ids) {
       await api.updateAnnotation(id, { status: 'done', resolvedBy });
     }
-    setAnnotations(await api.listAnnotations(selected.name));
-    setUndoStack((s) => [
+    // 用户还停在这个原型上才刷新面板；否则等切回来时由选择变更自动拉取
+    if (selectedNameRef.current === name) setAnnotations(await api.listAnnotations(name));
+    setUndoStack((s: UndoAction[]) => [
       ...s,
-      ...ids.map((id) => ({ kind: 'toggle', id, target: selected.name, prevStatus: 'open' as const })),
+      ...ids.map((id): UndoAction => ({ kind: 'toggle', id, target: name, prevStatus: 'open' })),
     ]);
+  };
+
+  /** 重新拉取某个原型的批注：发布任务结束（可能是别的标签页发起的）时同步面板状态 */
+  const reloadAnnotations = async (target: string) => {
+    if (selectedNameRef.current !== target) return;
+    try {
+      setAnnotations(await api.listAnnotations(target));
+    } catch {
+      /* 拉取失败保持现状，切换原型时会重新拉 */
+    }
   };
 
   // 标记层解析结果回调（首次渲染 + 切页签等 DOM 变化重排后都会触发）
@@ -424,7 +455,10 @@ export default function App() {
     }
     setAnnotations(await api.listAnnotations(selected.name));
     setMissingAnnotations([]);
-    setUndoStack((s) => [...s, ...toDelete.map((a) => ({ kind: 'delete', annotation: a }))]);
+    setUndoStack((s: UndoAction[]) => [
+      ...s,
+      ...toDelete.map((a): UndoAction => ({ kind: 'delete', annotation: a })),
+    ]);
     message.success('已清理失效批注');
   };
 
@@ -506,6 +540,14 @@ export default function App() {
       run: () => setRightPanel('ai'),
     },
     {
+      id: 'open-batch',
+      label: '打开批量任务',
+      hint: '面板',
+      icon: <ThunderboltOutlined />,
+      keywords: '批量 多个页面 批量任务 batch',
+      run: () => setRightPanel('batch'),
+    },
+    {
       id: 'open-git',
       label: '打开 Git 快照',
       hint: '面板',
@@ -551,6 +593,11 @@ export default function App() {
         onRefresh={refreshEntries}
         onPrdPreview={setPrdDoc}
         onOpenCmdk={() => setCmdkOpen(true)}
+        onOpenBatchPanel={() => {
+          clearTimeout(closeTimerRef.current);
+          setClosingPanel(false);
+          setRightPanel('batch');
+        }}
       />
 
       <div className="ph-main">
@@ -600,10 +647,22 @@ export default function App() {
                   </Tag>
                 </Tooltip>
               )}
-              {aiRunning && (
-                <span className="ph-ai-breath" title="AI 正在执行">
-                  AI 执行中
-                </span>
+              {/* 批量执行时用批量徽标替代（信息更全：第几个页面 / 正在改谁 / 已用多久） */}
+              {batchRunning > 0 ? (
+                <BatchTaskBadge onClick={() => togglePanel('batch')} />
+              ) : (
+                <AiTaskBadge
+                  localRunning={aiRunning}
+                  serverTask={aiServerTask}
+                  // 正在跑的是本页的批注发布 → 点徽标直接回到批注面板看进度
+                  onClick={
+                    aiServerTask.task?.annotationIds?.length &&
+                    (!aiServerTask.task.target ||
+                      aiServerTask.task.target === (selected ? `src/prototypes/${selected.name}` : ''))
+                      ? () => togglePanel('annotation')
+                      : undefined
+                  }
+                />
               )}
               <Segmented
                 size="small"
@@ -663,6 +722,18 @@ export default function App() {
                     AI
                   </Button>
                 </Tooltip>
+                <Badge count={batchRunning} size="small" color="blue">
+                  <Tooltip title="批量任务（一条指令改多个页面）">
+                    <Button
+                      size="small"
+                      type={rightPanel === 'batch' ? 'primary' : 'default'}
+                      icon={<ThunderboltOutlined />}
+                      onClick={() => togglePanel('batch')}
+                    >
+                      批量
+                    </Button>
+                  </Tooltip>
+                </Badge>
                 <Tooltip title="复制页面链接">
                   <Button size="small" icon={<CopyOutlined />} onClick={handleCopyUrl}>
                     复制
@@ -712,7 +783,7 @@ export default function App() {
         className={`ph-right-panel-backdrop${rightPanel ? ' active' : ''}${closingPanel ? ' closing' : ''}`}
         onClick={closeRightPanel}
       />
-      <div className={`ph-right-panel${rightPanel ? ' active' : ''}${closingPanel ? ' closing' : ''}`}>
+      <div className={`ph-right-panel${rightPanel ? ' active' : ''}${closingPanel ? ' closing' : ''}${rightPanel === 'batch' ? ' wide' : ''}`}>
         <Button
           className="ph-right-panel-close"
           size="small"
@@ -728,6 +799,7 @@ export default function App() {
           onDelete={deleteAnnotation}
           onApplied={() => setRefreshKey((k) => k + 1)}
           onMarkDone={markAnnotationsDone}
+          onReload={reloadAnnotations}
           missingAnnotations={missingAnnotations}
           hiddenAnnotations={hiddenAnnotations}
           onDeleteMissing={deleteMissing}
@@ -737,7 +809,31 @@ export default function App() {
       )}
       {rightPanel === 'git' && <GitPanel selected={selected} onRestored={() => setRefreshKey((k) => k + 1)} />}
       {rightPanel === 'ai' && <AiCliPanel selected={selected} />}
+      {rightPanel === 'batch' && (
+        <BatchTaskPanel
+          onChanged={() => {
+            // 回滚后预览需要重新加载（文件已被还原）
+            setRefreshKey((k) => k + 1);
+            refreshEntries();
+          }}
+        />
+      )}
     </div>
+
+      {/* 批量任务跑完的站内汇总（配合浏览器通知；点开看详情） */}
+      {aiBatch.fresh.map((job) => (
+        <BatchDoneNotice
+          key={job.id}
+          job={job}
+          onOpen={() => {
+            dismissBatchNotice(job.id);
+            clearTimeout(closeTimerRef.current);
+            setClosingPanel(false);
+            setRightPanel('batch');
+          }}
+          onClose={() => dismissBatchNotice(job.id)}
+        />
+      ))}
 
       <Modal
         title="添加批注"

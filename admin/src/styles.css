@@ -234,7 +234,9 @@ body {
   border-right: 1px solid var(--ph-border);
   display: flex;
   flex-direction: column;
-  transition: background 0.3s ease, border-color 0.3s ease;
+  overflow: hidden;
+  /* 收起/展开时宽度平滑过渡（内容互斥渲染，无需额外动画） */
+  transition: width 0.22s ease, background 0.3s ease, border-color 0.3s ease;
 }
 
 .ph-sidebar-header {
@@ -1397,4 +1399,752 @@ body {
   color: #fff;
   font-size: 22px;
   box-shadow: var(--ph-glow);
+}
+
+/* ── 批量 AI 修改：多选 → 一条指令 → 多个页面依次执行 ── */
+
+/* 侧边栏底部「多选操作条」 */
+.ph-batch-bar {
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px 10px;
+  border-top: 1px solid var(--ph-border);
+  background: var(--ph-panel-bg);
+  box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.06);
+}
+
+.ph-batch-bar-info {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 12px;
+  color: var(--ph-text-secondary);
+}
+
+.ph-batch-bar-info b {
+  color: var(--ph-accent);
+  font-size: 13px;
+}
+
+.ph-batch-bar-info a {
+  margin-left: auto;
+  color: var(--ph-active-text);
+  font-size: 12px;
+}
+
+.ph-batch-bar-info a + a {
+  margin-left: 0;
+}
+
+.ph-batch-bar-actions {
+  display: flex;
+  gap: 6px;
+  justify-content: flex-end;
+}
+
+/* 多选模式下被勾选的条目 */
+.ph-entry-item.checked {
+  background: var(--ph-active-bg);
+  color: var(--ph-active-text);
+}
+
+.ph-entry-item.checked .ph-entry-name {
+  color: var(--ph-active-text);
+  font-weight: 600;
+}
+
+/* 批量弹框：目标页面 tag */
+.ph-batch-targets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  max-height: 132px;
+  overflow-y: auto;
+  padding: 8px;
+  border: 1px solid var(--ph-border-light);
+  border-radius: 6px;
+  background: var(--ph-code-bg);
+}
+
+.ph-batch-target-path {
+  margin-left: 6px;
+  font-size: 11px;
+  color: var(--ph-text-tertiary);
+  font-family: monospace;
+}
+
+.ph-batch-examples {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.ph-batch-example {
+  cursor: pointer;
+  margin: 0;
+  white-space: normal;
+  line-height: 1.5;
+  padding: 2px 8px;
+  font-size: 12px;
+  color: var(--ph-text-secondary);
+}
+
+.ph-batch-example:hover {
+  color: var(--ph-active-text);
+  border-color: var(--ph-accent);
+}
+
+/* 批量任务面板比普通面板宽一些（要放状态 + 操作 + 输出） */
+.ph-right-panel.wide {
+  width: 620px;
+}
+
+.ph-batch-job {
+  border: 1px solid var(--ph-border-light);
+  border-radius: 8px;
+  padding: 10px 12px;
+  margin-bottom: 12px;
+  background: var(--ph-panel-bg);
+}
+
+.ph-batch-job-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.ph-batch-job-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ph-text);
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ph-batch-job-count {
+  font-size: 12px;
+  color: var(--ph-text-secondary);
+  font-variant-numeric: tabular-nums;
+}
+
+.ph-batch-instruction {
+  font-size: 12px;
+  color: var(--ph-text-secondary);
+  margin-bottom: 8px;
+  line-height: 1.6;
+  word-break: break-all;
+}
+
+.ph-batch-items {
+  margin-top: 10px;
+}
+
+.ph-batch-item {
+  border: 1px solid var(--ph-border-light);
+  border-left: 2px solid transparent;
+  border-radius: 6px;
+  padding: 8px 10px;
+  margin-bottom: 6px;
+  background: var(--ph-anno-card-bg);
+}
+
+.ph-batch-item.running {
+  border-left-color: var(--ph-accent);
+  background: var(--ph-anno-highlight-bg);
+}
+
+.ph-batch-item-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.ph-batch-item-title {
+  flex: 1;
+  font-size: 13px;
+  color: var(--ph-text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ph-batch-item-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 4px;
+  font-size: 12px;
+  color: var(--ph-text-tertiary);
+  font-variant-numeric: tabular-nums;
+  line-height: 1.7;
+}
+
+.ph-batch-err {
+  color: #ff4d4f;
+  word-break: break-all;
+}
+
+.ph-batch-item-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.ph-batch-output-wrap {
+  margin-top: 8px;
+}
+
+.ph-batch-files {
+  border: 1px dashed var(--ph-border);
+  border-radius: 6px;
+  padding: 6px 8px;
+  margin-bottom: 6px;
+  background: var(--ph-panel-bg);
+}
+
+.ph-batch-files-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ph-text-secondary);
+  margin-bottom: 4px;
+}
+
+.ph-batch-file {
+  font-family: monospace;
+  font-size: 12px;
+  color: var(--ph-git-link);
+  line-height: 1.7;
+  word-break: break-all;
+}
+
+.ph-batch-output {
+  max-height: 240px;
+  overflow: auto;
+  margin: 0;
+  padding: 8px 10px;
+  border-radius: 6px;
+  background: var(--ph-terminal-bg);
+  color: var(--ph-terminal-color);
+  font-size: 12px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+.ph-batch-summary {
+  margin-top: 8px;
+  padding: 8px 10px;
+  border-radius: 6px;
+  background: var(--ph-anno-card-hover);
+  font-size: 12px;
+  color: var(--ph-text-secondary);
+}
+
+.ph-batch-summary-title {
+  font-weight: 600;
+  color: var(--ph-text);
+  margin-bottom: 4px;
+}
+
+/* 批量任务结束的站内汇总浮层 */
+.ph-batch-notice {
+  position: fixed;
+  right: 20px;
+  bottom: 20px;
+  z-index: 1100;
+  width: 340px;
+  border: 1px solid var(--ph-border);
+  border-radius: 10px;
+  background: var(--ph-panel-bg);
+  box-shadow: var(--ph-shadow-card);
+  overflow: hidden;
+  animation: ph-batch-notice-in 0.24s ease-out;
+}
+
+@keyframes ph-batch-notice-in {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.ph-batch-notice-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 8px 8px 12px;
+  border-bottom: 1px solid var(--ph-border-light);
+}
+
+.ph-batch-notice-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ph-text);
+}
+
+.ph-batch-notice-body {
+  padding: 10px 12px;
+}
+
+.ph-batch-notice-instruction {
+  font-size: 12px;
+  color: var(--ph-text-secondary);
+  line-height: 1.6;
+  margin-bottom: 6px;
+  word-break: break-all;
+}
+
+.ph-batch-notice-stats {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 12px;
+  color: var(--ph-text-secondary);
+}
+
+.ph-batch-notice-footer {
+  padding: 0 12px 12px;
+  display: flex;
+  justify-content: flex-end;
+}
+
+/* ── 侧边栏收起态：72px 图标条 + 字母缩略图 + 悬停飞出预览 ── */
+
+.ph-sidebar.is-collapsed {
+  width: 72px;
+}
+
+.ph-sidebar.is-collapsed .ph-sidebar-header {
+  padding: 12px 0 4px;
+  justify-content: center;
+}
+
+/* 收起态：logo 本身也是「展开」入口，与展开态 header 的收起按钮互为镜像 */
+.ph-logo-mark.clickable {
+  cursor: pointer;
+  border-radius: 10px;
+  transition: background 0.15s ease;
+}
+
+.ph-logo-mark.clickable:hover {
+  background: var(--ph-hover-bg);
+}
+
+/* 展开态的收起按钮（hover 变蓝，弱化存在感） */
+.ph-sidebar-fold {
+  color: var(--ph-text-tertiary);
+}
+
+.ph-sidebar-fold:hover {
+  color: var(--ph-accent) !important;
+  background: var(--ph-hover-bg) !important;
+}
+
+/* 收起态：搜索区 / Tab / 底部工具条 */
+.ph-rail-tools,
+.ph-rail-tabs,
+.ph-rail-footer {
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+
+.ph-rail-tools {
+  padding: 6px 0 2px;
+}
+
+.ph-rail-tabs {
+  padding: 2px 0 8px;
+  border-bottom: 1px solid var(--ph-border-light);
+}
+
+.ph-rail-footer {
+  padding: 6px 0 8px;
+  border-top: 1px solid var(--ph-border);
+}
+
+.ph-rail-btn {
+  position: relative;
+  width: 40px;
+  height: 34px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--ph-text-secondary);
+  font-size: 16px;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+  animation: phRailFade 0.18s ease;
+}
+
+.ph-rail-btn:hover {
+  background: var(--ph-hover-bg);
+  color: var(--ph-text);
+}
+
+.ph-rail-btn.active {
+  background: var(--ph-active-bg);
+  color: var(--ph-active-text);
+}
+
+/* 角标：收起后也能一眼看出这一类有多少条目 */
+.ph-rail-badge {
+  position: absolute;
+  top: -1px;
+  right: 1px;
+  min-width: 14px;
+  height: 14px;
+  padding: 0 3px;
+  border-radius: 7px;
+  background: var(--ph-accent);
+  color: #fff;
+  font-size: 9px;
+  line-height: 14px;
+  text-align: center;
+  transform: scale(0.94);
+}
+
+.ph-rail-body {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 8px 0 10px;
+  /* 滚动条默认隐形，鼠标移到列表上才浮现细条，避免常驻粗滚动条破坏窄栏观感 */
+  scrollbar-width: thin;
+  scrollbar-color: transparent transparent;
+}
+
+.ph-rail-body:hover {
+  scrollbar-color: var(--ph-border) transparent;
+}
+
+.ph-rail-body::-webkit-scrollbar {
+  width: 5px;
+}
+
+.ph-rail-body::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.ph-rail-body::-webkit-scrollbar-thumb {
+  border-radius: 3px;
+  background: transparent;
+}
+
+.ph-rail-body:hover::-webkit-scrollbar-thumb {
+  background: var(--ph-border);
+}
+
+.ph-rail-empty {
+  padding: 16px 6px;
+  font-size: 11px;
+  color: var(--ph-sidebar-meta);
+  text-align: center;
+}
+
+/* 分组分隔：收起后用小字标记分组起点，悬停看全名（短横线避免窄栏被切碎） */
+.ph-rail-divider {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 6px 0 1px;
+}
+
+.ph-rail-divider::before,
+.ph-rail-divider::after {
+  content: '';
+  flex: 1;
+  max-width: 11px;
+  height: 1px;
+  background: var(--ph-border);
+}
+
+.ph-rail-divider::before {
+  margin-right: 4px;
+}
+
+.ph-rail-divider::after {
+  margin-left: 4px;
+}
+
+.ph-rail-divider span {
+  font-size: 9px;
+  line-height: 1;
+  letter-spacing: 0.5px;
+  color: var(--ph-text-tertiary);
+}
+
+/* 条目：字母缩略块（原型）/ 类型图标（文档、组件等） */
+.ph-rail-item {
+  position: relative;
+  flex-shrink: 0;
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  cursor: pointer;
+  animation: phRailFade 0.18s ease;
+}
+
+/* 缩略块：中性底 + 中灰字母，整条栏只有「灰」和「品牌蓝」两种语言，不再逐条变彩色 */
+.ph-rail-thumb,
+.ph-rail-icon {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 10px;
+  background: var(--ph-hover-bg);
+  color: var(--ph-text-secondary);
+  transition:
+    background 0.16s ease,
+    color 0.16s ease,
+    box-shadow 0.16s ease,
+    transform 0.16s cubic-bezier(0.34, 1.3, 0.64, 1);
+}
+
+.ph-rail-thumb {
+  font-size: 13px;
+  font-weight: 500;
+  letter-spacing: 0.2px;
+  user-select: none;
+}
+
+.ph-rail-icon {
+  font-size: 16px;
+}
+
+/* 悬停：块轻轻浮起 + 点亮品牌色，视觉上「抓得住」这一条 */
+.ph-rail-item:hover .ph-rail-thumb,
+.ph-rail-item:hover .ph-rail-icon {
+  background: var(--ph-active-bg);
+  color: var(--ph-accent);
+  transform: translateY(-1.5px) scale(1.05);
+  box-shadow: 0 4px 12px rgba(47, 84, 235, 0.18);
+}
+
+.ph-rail-item:active .ph-rail-thumb,
+.ph-rail-item:active .ph-rail-icon {
+  transform: scale(0.95);
+  box-shadow: none;
+}
+
+/* 当前预览中的条目：品牌色填充，位置一眼可见 */
+.ph-rail-item.active .ph-rail-thumb,
+.ph-rail-item.active .ph-rail-icon {
+  background: var(--ph-gradient);
+  color: #fff;
+  box-shadow: 0 2px 8px rgba(47, 84, 235, 0.28);
+}
+
+.ph-rail-item.active:hover .ph-rail-thumb,
+.ph-rail-item.active:hover .ph-rail-icon {
+  box-shadow: 0 5px 16px rgba(47, 84, 235, 0.36);
+}
+
+/* 批量修改模式下的勾选标记 */
+.ph-rail-check {
+  position: absolute;
+  top: -2px;
+  right: -2px;
+  width: 13px;
+  height: 13px;
+  border-radius: 50%;
+  border: 2px solid var(--ph-panel-bg);
+  background: var(--ph-border);
+}
+
+.ph-rail-check.on {
+  background: var(--ph-accent);
+}
+
+/* 悬停飞出：预览卡片（覆盖 antd Tooltip 默认深色小气泡） */
+.ph-rail-tip {
+  max-width: none;
+}
+
+/* 内边距交给卡片自己控制，圆角才不会被 tooltip 的默认 padding 顶开 */
+.ph-rail-tip .ant-tooltip-inner {
+  padding: 0;
+  overflow: hidden;
+  border-radius: 12px;
+  background: var(--ph-tooltip-bg);
+  border: 1px solid var(--ph-tooltip-border);
+  box-shadow: 0 14px 34px rgba(15, 23, 42, 0.16), 0 3px 8px rgba(15, 23, 42, 0.06);
+  color: var(--ph-text);
+}
+
+.ph-rail-tip .ant-tooltip-arrow::before,
+.ph-rail-tip .ant-tooltip-arrow-content {
+  background: var(--ph-tooltip-bg) !important;
+}
+
+.ph-rail-preview {
+  width: 234px;
+  padding: 12px;
+  text-align: left;
+}
+
+.ph-rail-preview-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+/* 与条目栏里那块一一对应的字母块：放大 + 品牌色，作为卡片唯一的高饱和元素 */
+.ph-rail-preview-avatar {
+  flex: 0 0 auto;
+  width: 38px;
+  height: 38px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 10px;
+  background: var(--ph-gradient);
+  color: #fff;
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: 0.2px;
+  box-shadow: 0 3px 10px rgba(47, 84, 235, 0.28);
+}
+
+.ph-rail-preview-avatar.neutral {
+  background: var(--ph-hover-bg);
+  color: var(--ph-text-secondary);
+  font-size: 17px;
+  box-shadow: none;
+}
+
+.ph-rail-preview-heading {
+  min-width: 0;
+}
+
+.ph-rail-preview-title {
+  font-size: 13.5px;
+  font-weight: 600;
+  line-height: 1.35;
+  color: var(--ph-text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ph-rail-preview-sub {
+  margin-top: 3px;
+  font-size: 11px;
+  line-height: 1.3;
+  color: var(--ph-text-tertiary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ph-rail-preview-foot {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px dashed var(--ph-border);
+}
+
+/* 分组名：卡片里唯一带色的标签，悬停时一眼确认"这是哪一组的那一个" */
+.ph-rail-preview-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex: 0 1 auto;
+  min-width: 0;
+  padding: 0 8px;
+  border-radius: 6px;
+  background: var(--ph-active-bg);
+  color: var(--ph-accent);
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 20px;
+  white-space: nowrap;
+}
+
+.ph-rail-preview-group .anticon {
+  flex: 0 0 auto;
+  font-size: 11px;
+}
+
+.ph-rail-preview-group-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* 未分组：占同一个位置但不上品牌色，避免和真分组混淆 */
+.ph-rail-preview-group.muted {
+  background: var(--ph-hover-bg);
+  color: var(--ph-text-tertiary);
+  font-weight: 400;
+}
+
+/* 类型退成右侧灰字：卡片里的高饱和只留给字母块和分组名两处 */
+.ph-rail-preview-type {
+  flex: 0 0 auto;
+  margin-left: auto;
+  color: var(--ph-text-tertiary);
+  font-size: 10.5px;
+  line-height: 20px;
+  white-space: nowrap;
+}
+
+/* 深色主题：中性底 + 浅灰字自动随变量反转；hover 时字母提到品牌蓝（提亮一档才压得住深底） */
+[data-theme='dark'] .ph-rail-item:hover .ph-rail-thumb,
+[data-theme='dark'] .ph-rail-item:hover .ph-rail-icon {
+  color: #a6b8ff;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+}
+
+[data-theme='dark'] .ph-rail-item.active:hover .ph-rail-thumb,
+[data-theme='dark'] .ph-rail-item.active:hover .ph-rail-icon {
+  color: #fff;
+  box-shadow: 0 5px 16px rgba(47, 84, 235, 0.45);
+}
+
+[data-theme='dark'] .ph-rail-tip .ant-tooltip-inner {
+  box-shadow: 0 14px 34px rgba(0, 0, 0, 0.6), 0 3px 8px rgba(0, 0, 0, 0.4);
+}
+
+@keyframes phRailFade {
+  from {
+    opacity: 0;
+    transform: translateY(2px);
+  }
+
+  to {
+    opacity: 1;
+    transform: none;
+  }
 }

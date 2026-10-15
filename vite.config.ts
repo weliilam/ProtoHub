@@ -24,6 +24,8 @@ export default defineConfig({
       'element-plus',
       '@element-plus/icons-vue',
       '@ant-design/icons-vue',
+      // 移动端 H5 原型（engine: vue + ui: none），自带 Vant 组件与样式
+      'vant',
     ],
   },
   server: {

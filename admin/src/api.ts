@@ -1,6 +1,9 @@
 import type {
+  AiQueueEvent,
   AiStatus,
+  AiTaskSnapshot,
   Annotation,
+  BatchJob,
   CreateEntryOptions,
   EntryItem,
   GitLogItem,
@@ -79,6 +82,8 @@ export const api = {
 
   // AI CLI
   aiStatus: () => request<AiStatus>('/api/ai/status'),
+  /** 全局 AI 任务状态：正在跑什么、跑了多久、预计还要多久、队列里还排着几个 */
+  aiTask: () => request<AiTaskSnapshot>('/api/ai/task'),
   /**
    * 上传 AI 助手图片（粘贴/选择）：传 dataURL，服务端落盘后返回相对项目根的路径。
    * 图片必须先落盘，AI CLI 才能用 Read 工具读到它的内容。
@@ -94,6 +99,11 @@ export const api = {
    * onThinking 回调实时收到思考过程片段（灰色斜体展示，可选）。
    * model / fallbackModel 仅对 codebuddy 生效（--model / --fallback-model）。
    * onPing 每 5s 收到一次服务端心跳（elapsed 为已运行秒数），用于展示运行时长/确认进程存活。
+   * opts.target 仅用于服务端状态展示（"正在改哪个页面"）。
+   * opts.annotationIds 为本次发布涉及的批注 id：服务端据此拒绝"同一批批注重复发布"，
+   *   并把它透出到 /api/ai/task，供刷新页面/其它标签页展示"这 N 条批注正在发布中"。
+   * opts.onQueued 在排队期间每 5s 回调一次（前面还排了几个、预计等待多久）；
+   * opts.onStart 表示真正轮到自己开始执行（排队结束，可能立刻触发）。
    */
   aiExecute: (
     cli: string,
@@ -104,12 +114,25 @@ export const api = {
     fallbackModel?: string,
     onPing?: (elapsedSec: number) => void,
     onThinking?: (chunk: string) => void,
+    opts?: {
+      target?: string;
+      annotationIds?: string[];
+      onQueued?: (info: AiQueueEvent) => void;
+      onStart?: (taskId: string) => void;
+    },
   ): Promise<{ output: string; timedOut: boolean }> =>
     new Promise((resolve, reject) => {
       fetch('/api/ai/execute', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ cli, prompt, model, fallbackModel }),
+        body: JSON.stringify({
+          cli,
+          prompt,
+          model,
+          fallbackModel,
+          target: opts?.target,
+          annotationIds: opts?.annotationIds,
+        }),
         signal,
       })
         .then(async (res) => {
@@ -135,6 +158,8 @@ export const api = {
                   if (msg.type === 'chunk') onChunk?.(msg.data);
                   else if (msg.type === 'thinking') onThinking?.(msg.data);
                   else if (msg.type === 'ping') onPing?.(msg.elapsed);
+                  else if (msg.type === 'queued') opts?.onQueued?.(msg as AiQueueEvent);
+                  else if (msg.type === 'start') opts?.onStart?.(msg.taskId);
                   else if (msg.type === 'done') final = { output: msg.output, timedOut: msg.timedOut };
                   else if (msg.type === 'error') throw new Error(msg.error);
                 } catch (e: any) {
@@ -149,6 +174,35 @@ export const api = {
         })
         .catch(reject);
     }),
+
+  // ── 批量任务 ──
+  /** 全部批量任务快照（面板轮询用） */
+  aiBatchList: () => request<{ jobs: BatchJob[] }>('/api/ai/batch/list'),
+  /** 创建批量任务：一条指令 + N 个目标页面 → 1 个 job / N 个子任务（服务端串行执行） */
+  aiBatchCreate: (payload: {
+    cli: string;
+    model?: string | null;
+    prompt: string;
+    targets: { name: string; title?: string }[];
+  }) => request<{ job: BatchJob }>('/api/ai/batch/create', { method: 'POST', body: JSON.stringify(payload) }),
+  /** 取消整批任务：未开始的标记取消，正在跑的停止（已完成的保留） */
+  aiBatchCancel: (jobId: string) =>
+    request<{ job: BatchJob }>('/api/ai/batch/cancel', { method: 'POST', body: JSON.stringify({ jobId }) }),
+  /** 移除任务记录（还在跑的先取消） */
+  aiBatchRemove: (jobId: string) =>
+    request('/api/ai/batch/remove', { method: 'POST', body: JSON.stringify({ jobId }) }),
+  /** 单个子任务操作：排队中取消 / 置顶，执行中停止 */
+  aiBatchItemAction: (jobId: string, itemId: string, action: 'cancel' | 'promote' | 'stop') =>
+    request<{ job: BatchJob }>('/api/ai/batch/item', {
+      method: 'POST',
+      body: JSON.stringify({ jobId, itemId, action }),
+    }),
+  /** 重试失败/取消的子任务（新建一个只含该目标的 job，排到队尾） */
+  aiBatchRetry: (jobId: string, itemId: string) =>
+    request<{ job: BatchJob }>('/api/ai/batch/retry', { method: 'POST', body: JSON.stringify({ jobId, itemId }) }),
+  /** 一键回滚该页面本次的 AI 改动（回到子任务执行前的基线快照） */
+  aiBatchRollback: (jobId: string, itemId: string) =>
+    request<{ job: BatchJob }>('/api/ai/batch/rollback', { method: 'POST', body: JSON.stringify({ jobId, itemId }) }),
 
   // 批注
   listAnnotations: (target: string) => request<Annotation[]>(`/api/annotations?target=${encodeURIComponent(target)}`),

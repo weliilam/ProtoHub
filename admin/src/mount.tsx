@@ -22,7 +22,10 @@ async function mountVue(container: HTMLElement, entry: string) {
     const app = createApp(App);
 
     try {
-      if (ui === 'ant-design-vue') {
+      if (ui === 'none') {
+        // proto.config.json 声明 "ui": "none"：原型自带组件库（如 Vant 移动端），
+        // 不注入任何全局组件库与 CSS，避免与被自带库的样式互相污染。
+      } else if (ui === 'ant-design-vue') {
         const ant = await import('ant-design-vue');
         await import('ant-design-vue/dist/reset.css');
         app.use(ant.default);

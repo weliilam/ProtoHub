@@ -238,11 +238,191 @@ function checkAuthorized(cliKey: string): boolean {
   return true;
 }
 
-/** 全局互斥锁：同一时刻只允许一个 AI CLI 在跑，避免并发改代码互相覆盖 */
-let aiRunning = false;
-let aiRunningSince = 0;
-/** 互斥锁兜底超时（ms）：必须 >= 执行超时，否则 AI 正常跑完前锁就被重置，导致并发改代码 */
-const AI_RUNNING_TIMEOUT = 660_000; // 11 分钟（执行超时 10 分钟 + 1 分钟缓冲）
+/**
+ * 组装 CLI 非交互执行参数。
+ * 固定模型（--model / --fallback-model）与实时流式输出只有 codebuddy 支持，
+ * 其它 CLI 保持各自原生参数。单页 AI 助手与批量任务共用，避免两处参数漂移。
+ */
+export function buildCliArgs(cliKey: string, model?: string | null, fallbackModel?: string | null): string[] {
+  const def = CLI_DEFS[cliKey];
+  if (!def) throw new Error('不支持的 CLI');
+  const args = [...def.args];
+  if (cliKey === 'codebuddy') {
+    const m = model?.trim();
+    if (m) args.push('--model', m);
+    const f = fallbackModel?.trim();
+    if (f) args.push('--fallback-model', f);
+    // stream-json + 逐 token 增量：text 模式下 codebuddy 会把输出缓冲到任务结束才返回
+    args.push('--output-format', 'stream-json', '--include-partial-messages');
+  }
+  return args;
+}
+
+/**
+ * AI 任务调度：同一时刻仍只允许一个 AI CLI 在跑（串行执行，避免并发改代码互相覆盖），
+ * 但不再"拒绝"后来者 —— 后来的任务进入 FIFO 队列，等前一个跑完自动开始，
+ * 并通过 /api/ai/task 把"在跑什么、跑了多久、还要多久、队列里有几个"暴露给前端。
+ */
+interface RunningTask {
+  id: string;
+  cli: string;
+  label: string;
+  model: string | null;
+  /** 操作目标（如 src/prototypes/xxx/），用于展示"正在改哪个页面" */
+  target: string;
+  /** 指令摘要（prompt 前 60 字） */
+  summary: string;
+  /** 批注发布任务对应的批注 id（其它任务为空）：透出给前端展示"这 N 条批注正在发布中" */
+  annotationIds?: string[];
+  startedAt: number;
+  /** 最近一次收到输出的时间，用于判断"是否卡住" */
+  lastChunkAt: number;
+}
+
+interface QueueEntry {
+  id: string;
+  cli: string;
+  label: string;
+  model: string | null;
+  target: string;
+  summary: string;
+  annotationIds?: string[];
+  enqueuedAt: number;
+  /** 调度器唤醒：true = 轮到执行；false = 已取消（客户端断开） */
+  grant: (ok: boolean) => void;
+}
+
+/** 正在执行的任务（null = 空闲） */
+let currentTask: RunningTask | null = null;
+/** 等待执行的任务队列（FIFO） */
+const pendingQueue: QueueEntry[] = [];
+/** 队列长度上限：串行执行，队太长等待无意义，同时也防误操作堆积 */
+const MAX_QUEUE = 5;
+/** 占位兜底回收（ms）：执行超时 10 分钟 + 1 分钟缓冲。极端情况下回调未触发时自动放行，避免队列永久卡死 */
+const TASK_STALE_MS = 660_000;
+
+/** 历史任务耗时（用于估算 ETA），按 cli+model 分组取中位数 */
+const durationHistory: { key: string; ms: number }[] = [];
+const DURATION_HISTORY_MAX = 50;
+/** 无历史样本时的兜底预估（秒） */
+const DEFAULT_ETA_SEC = 180;
+
+function durationKey(cli: string, model: string | null): string {
+  return `${cli}::${model || ''}`;
+}
+
+function recordDuration(cli: string, model: string | null, ms: number) {
+  durationHistory.push({ key: durationKey(cli, model), ms });
+  if (durationHistory.length > DURATION_HISTORY_MAX) {
+    durationHistory.splice(0, durationHistory.length - DURATION_HISTORY_MAX);
+  }
+}
+
+/** 预估某类任务耗时（秒）：取同 cli+model 的历史中位数（比均值抗长尾），样本不足时用兜底值 */
+function estimateDurationSec(cli: string, model: string | null): number {
+  const samples = durationHistory
+    .filter((h) => h.key === durationKey(cli, model))
+    .map((h) => h.ms)
+    .sort((a, b) => a - b);
+  if (!samples.length) return DEFAULT_ETA_SEC;
+  const mid = Math.floor(samples.length / 2);
+  const median = samples.length % 2 ? samples[mid] : (samples[mid - 1] + samples[mid]) / 2;
+  return Math.max(15, Math.round(median / 1000));
+}
+
+function makeTaskId(): string {
+  return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
+}
+
+/** prompt → 单行摘要，仅用于"正在改什么"的展示 */
+function summarizePrompt(prompt: string): string {
+  const flat = prompt.replace(/\s+/g, ' ').trim();
+  return flat.length > 60 ? `${flat.slice(0, 60)}…` : flat;
+}
+
+/** 队列快照（含排队位置与已等待时长） */
+function queueSnapshot() {
+  const now = Date.now();
+  return pendingQueue.map((q, i) => ({
+    id: q.id,
+    cli: q.cli,
+    label: q.label,
+    model: q.model,
+    target: q.target,
+    summary: q.summary,
+    annotationIds: q.annotationIds,
+    enqueuedAt: q.enqueuedAt,
+    waitedSec: Math.round((now - q.enqueuedAt) / 1000),
+    position: i + 1,
+  }));
+}
+
+/** 某排队任务预计还要等多少秒 = 正在跑的剩余时间 + 它前面所有任务的预估耗时 */
+function estimateWaitSec(taskId: string): number {
+  const idx = pendingQueue.findIndex((q) => q.id === taskId);
+  if (idx < 0) return 0;
+  let total = 0;
+  if (currentTask) {
+    const eta = estimateDurationSec(currentTask.cli, currentTask.model);
+    const elapsed = Math.round((Date.now() - currentTask.startedAt) / 1000);
+    total += Math.max(0, eta - elapsed);
+  }
+  for (let i = 0; i < idx; i++) total += estimateDurationSec(pendingQueue[i].cli, pendingQueue[i].model);
+  return total;
+}
+
+/** 全局任务状态（GET /api/ai/task），前端据此展示"在改什么 / 多久 / 排队几人" */
+function taskSnapshot() {
+  const now = Date.now();
+  if (!currentTask) {
+    return { running: false, task: null, queue: queueSnapshot(), etaSec: 0 };
+  }
+  const elapsedSec = Math.round((now - currentTask.startedAt) / 1000);
+  const etaSec = estimateDurationSec(currentTask.cli, currentTask.model);
+  return {
+    running: true,
+    task: {
+      id: currentTask.id,
+      cli: currentTask.cli,
+      label: currentTask.label,
+      model: currentTask.model,
+      target: currentTask.target,
+      summary: currentTask.summary,
+      annotationIds: currentTask.annotationIds,
+      startedAt: currentTask.startedAt,
+      elapsedSec,
+      etaSec,
+      /** 预计剩余秒数；0 表示已超出预估（任务仍在跑） */
+      remainSec: Math.max(0, etaSec - elapsedSec),
+      /** 距上次输出多少秒，前端据此提示"可能卡住" */
+      idleSec: Math.round((now - currentTask.lastChunkAt) / 1000),
+    },
+    queue: queueSnapshot(),
+    etaSec,
+  };
+}
+
+/** 从队列头唤醒下一个任务（仅在空闲时；grant 前先占位，避免同一时刻唤醒两个） */
+function dispatchNextTask() {
+  if (currentTask) return;
+  const next = pendingQueue.shift();
+  if (!next) return;
+  const startedAt = Date.now();
+  currentTask = {
+    id: next.id, cli: next.cli, label: next.label, model: next.model,
+    target: next.target, summary: next.summary, annotationIds: next.annotationIds,
+    startedAt, lastChunkAt: startedAt,
+  };
+  next.grant(true);
+}
+
+/** 兜底回收：极端情况下（进程回调未触发）占位一直不释放会导致队列永久卡死 */
+function reapStaleTask() {
+  if (currentTask && Date.now() - currentTask.startedAt > TASK_STALE_MS) {
+    currentTask = null;
+    dispatchNextTask();
+  }
+}
 
 interface RunCliOptions {
   /** true = codebuddy `--output-format stream-json`：stdout 每行一个 NDJSON 事件，需逐行解析 */
@@ -251,6 +431,8 @@ interface RunCliOptions {
   onChunk?: (chunk: string) => void;
   /** 思考过程增量（thinking_delta），用于前端展示"AI 正在思考" */
   onThinking?: (chunk: string) => void;
+  /** 任意一条有效事件（含无文本输出的工具调用）：用于"是否卡住"打点，避免长时间改文件被误判为卡住 */
+  onActivity?: () => void;
   /** 执行失败（如 401 认证失败）：让前端明确看到错误而不是空回复 */
   onError?: (message: string) => void;
 }
@@ -276,7 +458,7 @@ function killTree(child: ChildProcess, onDone?: () => void) {
     } else {
       // Unix：负 pid = 杀整个进程组（含孙进程）
       try {
-        process.kill(-child.pid, 'SIGTERM');
+        if (child.pid !== undefined) process.kill(-child.pid, 'SIGTERM');
       } catch {
         /* ignore */
       }
@@ -325,6 +507,8 @@ function runCli(
       } catch {
         return; // 非 JSON 行（如 CLI 自身 banner），忽略
       }
+      // 任何一条有效事件都算"有动静"：CLI 长时间在改文件时不至于被判定为卡住
+      opts.onActivity?.();
       if (evt.type === 'stream_event') {
         const e = evt.event;
         if (e?.type === 'content_block_delta' && e.delta) {
@@ -401,6 +585,15 @@ export function aiCliApiPlugin(): Plugin {
           }
 
           /**
+           * 全局 AI 任务状态：当前在跑什么、跑了多久、预计还要多久、队列里还排着几个。
+           * 前端顶栏/面板据此展示（刷新页面、切换标签页同样能看到，不再只反映"本页发起的任务"）。
+           */
+          if (pathname === '/api/ai/task' && req.method === 'GET') {
+            reapStaleTask();
+            return sendJson(res, { success: true, data: taskSnapshot() });
+          }
+
+          /**
            * 图片上传：前端把剪贴板/选择的图片转成 dataURL 发过来，这里落盘成真实文件。
            * 必须落盘——AI CLI 读图靠的是 Read 工具读本地文件，base64 字符串它无法识别。
            */
@@ -434,42 +627,59 @@ export function aiCliApiPlugin(): Plugin {
           }
 
           if (pathname === '/api/ai/execute' && req.method === 'POST') {
-            const body = await readJsonBody<{ cli?: string; prompt?: string; model?: string; fallbackModel?: string }>(req);
+            const body = await readJsonBody<{
+              cli?: string;
+              prompt?: string;
+              model?: string;
+              fallbackModel?: string;
+              /** 操作目标（如 src/prototypes/xxx/）：仅用于状态展示"正在改哪个页面" */
+              target?: string;
+              /** 批注发布任务涉及的批注 id：用于拒绝重复发布，并透出给前端展示发布中的批注 */
+              annotationIds?: string[];
+            }>(req);
             const def = body.cli ? CLI_DEFS[body.cli] : null;
             if (!def) return sendError(res, '不支持的 CLI');
             if (!body.prompt?.trim()) return sendError(res, 'prompt 不能为空');
 
-            // 固定模型：仅 codebuddy 支持 --model / --fallback-model，其它 CLI 忽略
-            const args = [...def.args];
-            const isCodebuddy = def === CLI_DEFS.codebuddy;
-            if (isCodebuddy) {
-              const model = body.model?.trim();
-              if (model) args.push('--model', model);
-              const fallback = body.fallbackModel?.trim();
-              if (fallback) args.push('--fallback-model', fallback);
-              // 实时流式输出：stream-json + 逐 token 增量。否则 text 模式下 codebuddy
-              // 会把所有输出缓冲到整个任务结束才一次性返回，长任务期间前端只能看到倒计时。
-              args.push('--output-format', 'stream-json', '--include-partial-messages');
-            }
+            // 固定模型与流式输出仅 codebuddy 支持：与批量任务共用同一套参数组装，避免两处漂移
+            const isCodebuddy = body.cli === 'codebuddy';
+            const args = buildCliArgs(body.cli!, body.model, body.fallbackModel);
 
             const bin = def.bin[0];
             if (!(await which(bin))) return sendError(res, `${def.label}（${bin}）未安装或不在 PATH 中`);
 
-            // 互斥锁：已有 AI 在运行时拒绝并发执行，避免同时改代码互相覆盖
-            if (aiRunning) {
-              // 兜底：如果锁超过超时时间未释放（进程崩溃导致），自动重置
-              if (Date.now() - aiRunningSince > AI_RUNNING_TIMEOUT) {
-                aiRunning = false;
-                aiRunningSince = 0;
-              } else {
-                return sendError(res, '已有 AI 任务正在执行，请等待其完成后再试', 429);
-              }
+            reapStaleTask();
+            if (pendingQueue.length >= MAX_QUEUE) {
+              return sendError(res, `排队任务已达上限（${MAX_QUEUE} 个），请等待当前任务完成后再试`, 429);
             }
 
-            aiRunning = true;
-            aiRunningSince = Date.now();
+            const cli = body.cli!;
+            const model = body.model?.trim() || null;
+            const target = (body.target || '').trim();
+            const annotationIds = Array.isArray(body.annotationIds)
+              ? [...new Set(body.annotationIds.filter((id) => typeof id === 'string' && id.trim()))]
+              : [];
+            // 同一批批注禁止重复发布：否则会给 AI 发两遍同样的改动指令，
+            // 第二遍是在已被改过的代码上再改一次，既浪费额度又容易把改动改坏。
+            if (annotationIds.length > 0) {
+              const busyIds = new Set([
+                ...(currentTask?.annotationIds || []),
+                ...pendingQueue.flatMap((q) => q.annotationIds || []),
+              ]);
+              const dup = annotationIds.filter((id) => busyIds.has(id));
+              if (dup.length > 0) {
+                const running = !!currentTask?.annotationIds?.some((id) => dup.includes(id));
+                const who = running
+                  ? `正在执行的任务（${currentTask?.label}${currentTask?.target ? ` · ${currentTask.target}` : ''}）`
+                  : '排队中的任务';
+                return sendError(res, `有 ${dup.length} 条批注已在${who}中发布，请等它结束后再试`, 409);
+              }
+            }
+            const summary = summarizePrompt(body.prompt!);
+            const taskId = makeTaskId();
 
-            // 强制即时发送头部，避免浏览器等待首段数据才建立流
+            // 排队与执行共用同一条 NDJSON 流：排队时推 queued，轮到时推 start，之后推 chunk/thinking/ping/done。
+            // 这样前端无需区分两种形态，用户也不会再被"已有任务正在执行"直接拒之门外。
             res.statusCode = 200;
             res.setHeader('Content-Type', 'application/x-ndjson; charset=utf-8');
             res.setHeader('Cache-Control', 'no-cache');
@@ -477,15 +687,120 @@ export function aiCliApiPlugin(): Plugin {
             res.setHeader('X-Accel-Buffering', 'no'); // 禁用 nginx 代理缓冲
             res.flushHeaders();
 
-            // 用 NDJSON 流式回传执行进度，前端可实时看到 AI 输出
             let clientClosed = false;
-            const { promise, child } = runCli(bin, args, body.prompt!, 600_000, {
+            let child: ChildProcess | null = null;
+            let heartbeat: NodeJS.Timeout | null = null;
+            let queueTimer: NodeJS.Timeout | null = null;
+
+            /** 释放占位（仅当仍属于本任务）并唤醒队列中的下一个 */
+            const finishTask = () => {
+              if (currentTask?.id === taskId) currentTask = null;
+              dispatchNextTask();
+            };
+
+            // ── 入队：空闲时会被 dispatchNextTask 立即唤醒，否则等前一个任务跑完 ──
+            const entry: QueueEntry = {
+              id: taskId, cli, label: def.label, model, target, summary,
+              annotationIds: annotationIds.length > 0 ? annotationIds : undefined,
+              enqueuedAt: Date.now(),
+              grant: () => {},
+            };
+            const granted = new Promise<boolean>((resolve) => {
+              entry.grant = resolve;
+            });
+
+            /** 推送排队进度（位置 / 前面排了谁 / 预计等待），同时充当排队期间的心跳 */
+            const pushQueued = () => {
+              if (clientClosed) return;
+              try {
+                const snap = taskSnapshot();
+                res.write(
+                  JSON.stringify({
+                    type: 'queued',
+                    taskId,
+                    position: snap.queue.findIndex((q) => q.id === taskId) + 1,
+                    queue: snap.queue,
+                    waitEtaSec: estimateWaitSec(taskId),
+                    running: snap.task,
+                  }) + '\n',
+                );
+              } catch {
+                /* 连接已断，忽略 */
+              }
+            };
+
+            pendingQueue.push(entry);
+
+            // 客户端断开（关闭页面/点停止）：排队中直接出队，执行中强杀进程树。
+            //
+            // 注意：必须监听 res 而不是 req。Node 15.1+ 中 IncomingMessage 的 'close' 表示"请求已接收完毕"，
+            // 请求体在 readJsonBody 阶段就已读完并触发过，这里再注册永远收不到 —— 历史上正是这个原因
+            // 导致"点了停止服务端却毫无感知"：子进程继续在后台改代码、占位不释放，用户再发一律 429。
+            // res 的 'close' 才是真正的"连接关闭"：正常跑完时 writableEnded 为 true，直接跳过即可。
+            res.on('close', () => {
+              if (res.writableEnded) return; // 正常结束，finally 已收尾
+              clientClosed = true;
+              if (queueTimer) clearInterval(queueTimer);
+              if (heartbeat) clearInterval(heartbeat);
+              const idx = pendingQueue.indexOf(entry);
+              if (idx >= 0) {
+                // 还在排队：出队并解除等待（否则这个请求会一直挂着）
+                pendingQueue.splice(idx, 1);
+                entry.grant(false);
+                return;
+              }
+              if (child) {
+                // 正在执行：按进程树强杀（Windows 下 spawn 的是 cmd 包装进程，只 kill 它会留下孤儿），
+                // 杀完立即释放占位，让下一个排队任务马上开始
+                let forceTimer: NodeJS.Timeout | undefined;
+                const release = () => {
+                  clearTimeout(forceTimer);
+                  finishTask();
+                };
+                forceTimer = setTimeout(release, 3000);
+                killTree(child, release);
+              }
+            });
+
+            dispatchNextTask();
+            if (currentTask?.id !== taskId) {
+              // 没轮到自己 → 排队中，每 5s 刷新一次排队位置（也避免代理/浏览器空闲断连）
+              pushQueued();
+              queueTimer = setInterval(pushQueued, 5000);
+            }
+
+            const grantedOk = await granted;
+            if (queueTimer) clearInterval(queueTimer);
+            queueTimer = null;
+            if (!grantedOk || clientClosed || currentTask?.id !== taskId) {
+              try {
+                if (!res.writableEnded) res.end();
+              } catch {
+                /* 连接已断 */
+              }
+              return;
+            }
+
+            // ── 轮到自己：正式开始执行 ──
+            const startedAt = currentTask?.startedAt ?? Date.now();
+            try {
+              res.write(
+                JSON.stringify({ type: 'start', taskId, cli, label: def.label, model, target, startedAt }) + '\n',
+              );
+            } catch {
+              /* 连接刚断，后续写入会因 clientClosed 短路 */
+            }
+
+            // 用 NDJSON 流式回传执行进度，前端可实时看到 AI 输出
+            const { promise, child: proc } = runCli(bin, args, body.prompt!, 600_000, {
               streamJson: isCodebuddy,
               onChunk: (chunk) => {
+                if (currentTask?.id === taskId) currentTask.lastChunkAt = Date.now();
                 if (clientClosed) return;
                 try { res.write(JSON.stringify({ type: 'chunk', data: chunk }) + '\n'); } catch {}
               },
               onThinking: (chunk) => {
+                if (currentTask?.id === taskId) currentTask.lastChunkAt = Date.now();
                 if (clientClosed) return;
                 try { res.write(JSON.stringify({ type: 'thinking', data: chunk }) + '\n'); } catch {}
               },
@@ -494,30 +809,13 @@ export function aiCliApiPlugin(): Plugin {
                 try { res.write(JSON.stringify({ type: 'error', error: message }) + '\n'); } catch {}
               },
             });
+            child = proc;
 
-            // 客户端断开/刷新页面时立即终止子进程树，防止 AI 继续改代码；
-            // 进程树强杀完成后立即释放互斥锁，让用户停止后马上能发起新任务；
-            // 另加 3s 兜底：即使 killTree 回调未触发（极端情况），也强制释放锁，避免"停止后一直 429"
-            req.on('close', () => {
-              clientClosed = true;
-              let forceTimer: NodeJS.Timeout | undefined;
-              const release = () => {
-                clearTimeout(forceTimer);
-                aiRunning = false;
-                aiRunningSince = 0;
-              };
-              forceTimer = setTimeout(release, 3000);
-              killTree(child, release);
-            });
-
-            const startedAt = Date.now();
-            res.write(
-              JSON.stringify({ type: 'start', cli: body.cli, label: def.label, model: body.model || null }) + '\n',
-            );
             // 心跳：每 5s 发一次 ping，让前端持续确认进程存活（也避免代理/浏览器空闲断连）
-            const heartbeat = setInterval(() => {
+            heartbeat = setInterval(() => {
               if (clientClosed) {
-                clearInterval(heartbeat);
+                if (heartbeat) clearInterval(heartbeat);
+                heartbeat = null;
                 return;
               }
               try {
@@ -525,19 +823,24 @@ export function aiCliApiPlugin(): Plugin {
                   JSON.stringify({ type: 'ping', elapsed: Math.round((Date.now() - startedAt) / 1000) }) + '\n',
                 );
               } catch {
-                clearInterval(heartbeat);
+                if (heartbeat) clearInterval(heartbeat);
+                heartbeat = null;
               }
             }, 5000);
+
             try {
               const { output, timedOut } = await promise;
-              res.write(JSON.stringify({ type: 'done', output, timedOut }) + '\n');
+              recordDuration(cli, model, Date.now() - startedAt);
+              if (!clientClosed) res.write(JSON.stringify({ type: 'done', output, timedOut }) + '\n');
             } catch (e: any) {
-              res.write(JSON.stringify({ type: 'error', error: e.message || 'AI CLI 执行失败' }) + '\n');
+              if (!clientClosed) {
+                try { res.write(JSON.stringify({ type: 'error', error: e.message || 'AI CLI 执行失败' }) + '\n'); } catch {}
+              }
             } finally {
-              clearInterval(heartbeat);
-              aiRunning = false;
-              aiRunningSince = 0;
-              res.end();
+              if (heartbeat) clearInterval(heartbeat);
+              child = null;
+              finishTask();
+              if (!res.writableEnded) res.end();
             }
             return;
           }
@@ -550,3 +853,103 @@ export function aiCliApiPlugin(): Plugin {
     },
   };
 }
+
+// ── 批量任务（server/aiBatchApi.ts）复用的执行槽位 ──
+//
+// 批量任务的每个子任务都要走这里，与单页 AI 助手共用同一套 currentTask / pendingQueue：
+// 同一时刻只有一个 AI CLI 在改代码，批量任务与面板任务天然互斥，不会并发覆盖文件。
+
+export interface SlotRequest {
+  cli: string;
+  label: string;
+  model: string | null;
+  /** 操作目标（如 src/prototypes/xxx/） */
+  target: string;
+  /** 指令摘要（展示用） */
+  summary: string;
+  /** 批注发布任务对应的批注 id（批量任务不用） */
+  annotationIds?: string[];
+}
+
+export interface SlotHandle {
+  id: string;
+  /** 等待轮到执行：true = 放行；false = 排队期间被取消 */
+  wait: Promise<boolean>;
+  /** 排队中的位置（1 = 队首）；已放行或被取消返回 0 */
+  position(): number;
+  /** 排队中预计还要等多少秒 */
+  waitSec(): number;
+  /** 是否已拿到执行权（正在跑） */
+  isRunning(): boolean;
+  /** 排队中：出队取消，返回是否成功 */
+  cancel(): boolean;
+  /** 排队中：插到队首（正在执行时不生效） */
+  promote(): boolean;
+}
+
+/** 申请执行槽位：空闲时立即放行，否则进入 FIFO 队列等待 */
+export function acquireSlot(req: SlotRequest): SlotHandle {
+  reapStaleTask();
+  const id = makeTaskId();
+  let waiting = true;
+  const entry: QueueEntry = {
+    id,
+    cli: req.cli,
+    label: req.label,
+    model: req.model,
+    target: req.target,
+    summary: req.summary,
+    annotationIds: req.annotationIds,
+    enqueuedAt: Date.now(),
+    grant: () => {},
+  };
+  const wait = new Promise<boolean>((resolve) => {
+    entry.grant = (ok) => {
+      waiting = false;
+      resolve(ok);
+    };
+  });
+  pendingQueue.push(entry);
+  dispatchNextTask();
+  return {
+    id,
+    wait,
+    position: () => (waiting ? pendingQueue.findIndex((q) => q.id === id) + 1 : 0),
+    waitSec: () => (waiting ? estimateWaitSec(id) : 0),
+    isRunning: () => currentTask?.id === id,
+    cancel: () => {
+      const idx = pendingQueue.findIndex((q) => q.id === id);
+      if (idx < 0) return false;
+      pendingQueue.splice(idx, 1);
+      entry.grant(false);
+      return true;
+    },
+    promote: () => {
+      const idx = pendingQueue.findIndex((q) => q.id === id);
+      if (idx < 0) return false;
+      if (idx === 0) return true;
+      const [moved] = pendingQueue.splice(idx, 1);
+      pendingQueue.unshift(moved);
+      return true;
+    },
+  };
+}
+
+/** 任务收尾：释放槽位并放行下一个（成功 / 失败 / 被停止都必须调用，否则队列永久卡死） */
+export function releaseSlot(id: string) {
+  if (currentTask?.id === id) currentTask = null;
+  dispatchNextTask();
+}
+
+/** 收到输出时打点，用于 idleSec（"是否卡住"）判定 */
+export function touchTask(id: string) {
+  if (currentTask?.id === id) currentTask.lastChunkAt = Date.now();
+}
+
+/** 队列是否已满（批量任务据此决定"继续提交"还是"稍后再试"） */
+export function queueFull(): boolean {
+  return pendingQueue.length >= MAX_QUEUE;
+}
+
+export { CLI_DEFS, which, checkAuthorized, recordDuration, summarizePrompt, taskSnapshot, killTree, runCli, estimateDurationSec };
+export type { RunCliOptions };
